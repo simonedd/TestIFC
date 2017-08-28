@@ -3,3 +3,9 @@
 ################################################################################
 
 /.vs
+*.suo
+/src/packages/Newtonsoft.Json.10.0.3
+/src/ReadIFC/obj
+/src/ReadIFC/bin/Debug
+/src/ReadIFC/Form1Internal.cs
+*.sln
