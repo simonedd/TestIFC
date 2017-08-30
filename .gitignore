@@ -9,3 +9,4 @@
 /src/ReadIFC/bin/Debug
 /src/ReadIFC/Form1Internal.cs
 *.sln
+*.dll

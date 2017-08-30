@@ -33,6 +33,33 @@ namespace WindowsApplication1
             for (int i = 0; i < entList.Count; i++)
             {
                 Entity ent = entList[i];
+                if (ent.EntityData != null)
+                {
+                    string[] data = ((string)ent.EntityData).Split(new char[] { '|' }, 2);
+
+                    TreeNode keyWordNode = null;
+                    foreach (TreeNode node in nodes)
+                    {
+                        if (node.Text.Equals(data[0]))
+                        {
+                            keyWordNode = node;
+                            break;
+                        }
+                    }
+                    if (keyWordNode == null)
+                    {
+                        keyWordNode = new TreeNode(data[0]);
+                        keyWordNode.ImageIndex = 1;
+                        keyWordNode.SelectedImageIndex = 1;
+                        nodes.Add(keyWordNode);
+                    }
+
+                    TreeNode glIdNode = new TreeNode(data[1]);
+                    glIdNode.Tag = ent;
+                    glIdNode.ImageIndex = 1;
+                    glIdNode.SelectedImageIndex = 1;
+                    keyWordNode.Nodes.Add(glIdNode);
+                }
                 //if (ent is BlockReference)
                 //{
                 //    Block child;
@@ -50,20 +77,7 @@ namespace WindowsApplication1
                 //    }
                 //}
                 //else
-                {
-                    string type = (string)ent.EntityData;
-                    var node = new TreeNode(GetNodeName(type, i));
-                    node.Tag = ent;
-                    node.ImageIndex = 1;
-                    node.SelectedImageIndex = 1;
-                    nodes.Add(node);
-                }
             }
-        }
-
-        private static string GetNodeName(string name, int index)
-        {
-            return String.Format("{0} ({1})", name, index);
         }
 
         /// <summary>

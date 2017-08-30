@@ -51,11 +51,12 @@ namespace WindowsApplication1
             testLayer = viewportLayout1.Layers.Add("testLayer", Color.Red);
 
             viewportLayout1.Layers[0].Name = "Default";
+            viewportLayout1.Layers[0].Color = Color.Gray;
             
             //DatabaseIfc db = new DatabaseIfc("C:\\devdept\\IFC Model.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\MOD-Padrão\\MOD-Padrão.ifc");
-            DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\Blueberry031105_Complete_optimized.ifc");
-            //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\c_rvt8_Townhouse.ifc");
+            //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\Blueberry031105_Complete_optimized.ifc");
+            DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\c_rvt8_Townhouse.ifc");
             
 
             IfcProject project = db.Project;
@@ -71,18 +72,42 @@ namespace WindowsApplication1
                 {   
                     trs = Conversion.getPlacementTransformtion((IfcLocalPlacement)element.Placement);
 
-                    ////Color
+                    
 
+                    IfcProductRepresentation prodRep = (IfcProductRepresentation)element.Representation;
+
+                    Entity entity = Conversion.getEntityFromIfcProductRepresentation(prodRep, viewportLayout1);
+
+                    #region Color
+                    //try
+                    //{
+                    //    IfcMaterialLayerSetUsage mls = (IfcMaterialLayerSetUsage)element.MaterialSelect;
+                    //    if (mls != null)
+                    //    {
+
+
+                    //        IfcPresentationStyleAssignment ps = (IfcPresentationStyleAssignment)mls.ForLayerSet.MaterialLayers[0].PrimaryMaterial.HasRepresentation.Representations[0].Items[0].Styles[0];
+                    //        IfcSurfaceStyle ss = (IfcSurfaceStyle)ps.Styles[0];
+                    //        IfcSurfaceStyleRendering ssr = (IfcSurfaceStyleRendering)ss.Styles[0];
+                    //        Color color = ssr.SurfaceColour.Colour;
+
+
+                    //        entity.ColorMethod = colorMethodType.byEntity;
+
+                    //        entity.Color = color;
+                    //    }
+                    //}
+                    //catch (Exception exc)
+                    //{
+                    //    Debug.Write(exc);
+                    //}
                     //element.MaterialSelect.PrimaryMaterial.HasRepresentation.Representations[0].Items[0].Styles[0]....
 
                     //fcPresentationStyleAssignment psa = (IfcPresentationStyleAssignment)extrAreaSolid.StyledByItem.Styles[0];
                     //IfcSurfaceStyle ss = (IfcSurfaceStyle)psa.Styles[0];
                     //IfcSurfaceStyleRendering ssr = (IfcSurfaceStyleRendering)ss.Styles[0];
                     //Color color = ssr.SurfaceColour.Colour;
-
-                    IfcProductRepresentation prodRep = (IfcProductRepresentation)element.Representation;
-
-                    Entity entity = Conversion.getEntityFromIfcProductRepresentation(prodRep, viewportLayout1);
+#endregion
 
                     if(entity != null)
                     {
@@ -106,7 +131,7 @@ namespace WindowsApplication1
 
                                 Solid[] result;
 
-                                result = Solid.Difference(entitySolid, openingSolid);
+                                result = Solid.Difference(entitySolid, openingSolid, 0.00001);
 
                                 if (result != null)
                                     entitySolid = result[0];
@@ -116,18 +141,18 @@ namespace WindowsApplication1
                             entity = entitySolid;
                         }
 
-                        entity.EntityData = element.ObjectType + "|" + element.Name + "|" + element.GlobalId;
+                        entity.EntityData = element.KeyWord + "|" + element.GlobalId;
 
                         //entity.TransformBy(trs);
 
-                        viewportLayout1.Entities.Add(entity, 0, Color.Gray);
+                        viewportLayout1.Entities.Add(entity, 0);
                     }
 
                 }
                 else
                 {
-                    if(!debug.Contains("IfcElement not supported: " + element.KeyWord))
-                        debug += "IfcElement not supported: " + element.KeyWord + "\n";
+                    if(!debug.Contains("IfcElement error: " + element.KeyWord))
+                        debug += "IfcElement error: " + element.KeyWord + "\n";
                 }
             }
 
@@ -135,7 +160,7 @@ namespace WindowsApplication1
 
             Debug.WriteLine(debug);
 
-            //viewportLayout1.ActionMode = actionType.SelectVisibleByPick;
+            viewportLayout1.Entities.AddRange(Conversion.DebugEntity, testLayer);
 
             TreeViewManager.PopulateTree(modelTree, viewportLayout1.Entities.ToList(), viewportLayout1.Blocks);
 
@@ -290,7 +315,6 @@ namespace WindowsApplication1
         }
 
         #endregion
-
     }
 }
 

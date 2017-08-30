@@ -21,6 +21,8 @@ namespace WindowsApplication1
     {
         private static int count = 0;
 
+        private static List<Entity> debugEntityList = new List<Entity>();
+
         private static string debug = String.Empty;
 
         public static Transformation getPlacementTransformtion(IfcLocalPlacement ilp)
@@ -67,7 +69,7 @@ namespace WindowsApplication1
 
             foreach (IfcRepresentation iRep in prodRep.Representations)
             {
-                Mesh m = getMeshFromIfcRepresentationItem(iRep.Items[0]); // correggere se item.Count > 1
+                Mesh m = getMeshFromIfcRepresentationItem(iRep.Items[0], viewportLayout1);      // correggere se item.Count > 1
 
                 if (m != null)
                     mList.Add(m);
@@ -92,12 +94,19 @@ namespace WindowsApplication1
             return mList[0];
         }
 
-        public static Mesh getMeshFromIfcRepresentationItem(IfcRepresentationItem repItem)
+        public static Mesh getMeshFromIfcRepresentationItem(IfcRepresentationItem reprItem, ViewportLayout viewportLayout1 = null)
         {
-            Mesh m = null;
-            if (repItem is IfcExtrudedAreaSolid)
+            Mesh result = null;
+            if (reprItem is IfcBooleanClippingResult)
             {
-                IfcExtrudedAreaSolid extrAreaSolid = (IfcExtrudedAreaSolid)repItem;
+                IfcBooleanClippingResult bcr = (IfcBooleanClippingResult)reprItem;
+                Solid s = getSolidFromIfcBooleanClippingResult(bcr);
+                if (s != null)
+                    result = s.ConvertToMesh();
+            }
+            else if (reprItem is IfcExtrudedAreaSolid)
+            {
+                IfcExtrudedAreaSolid extrAreaSolid = (IfcExtrudedAreaSolid)reprItem;
                 // if (!viewportLayout1.Blocks.ContainsKey(extrAreaSolid.Index.ToString()))
                 {
                     Plane pln = Conversion.getPlaneFromPosition(extrAreaSolid.Position);
@@ -118,7 +127,7 @@ namespace WindowsApplication1
                         //region.TransformBy(trs * align2);
                         region.TransformBy(align);
 
-                        m = region.ExtrudeAsMesh(extDir * extrAreaSolid.Depth, 0.1, Mesh.natureType.Plain); // 0.1 tolerance must be computed according to object size
+                        result = region.ExtrudeAsMesh(extDir * extrAreaSolid.Depth, 0.1, Mesh.natureType.Plain); // 0.1 tolerance must be computed according to object size
 
                         //Block b = new Block();
                         //b.Entities.Add(m);
@@ -129,9 +138,65 @@ namespace WindowsApplication1
                 // BlockReference br = new BlockReference(trs, extrAreaSolid.Index.ToString());
                 // viewportLayout1.Entities.Add(br, 0, Color.Gray);
             }
-            else if (repItem is IfcFacetedBrep)  //controllare
+            else if (reprItem is IfcFaceBasedSurfaceModel)
             {
-                IfcFacetedBrep facBrep = (IfcFacetedBrep)repItem;
+                IfcFaceBasedSurfaceModel fbs = (IfcFaceBasedSurfaceModel)reprItem;
+
+                result = new Mesh(0, 0, Mesh.natureType.Plain);
+
+                foreach (IfcConnectedFaceSet cfs in fbs.FbsmFaces)
+                {
+
+                    Mesh global = new Mesh(0, 0, Mesh.natureType.Plain);
+
+                    foreach (IfcFace face in cfs.CfsFaces)
+                    {
+                        foreach (IfcFaceBound fb in face.Bounds)
+                        {
+                            IfcPolyloop pl = (IfcPolyloop)fb.Bound;
+
+                            Point3D[] points = new Point3D[pl.Polygon.Count + 1];
+
+                            for (int i = 0; i < pl.Polygon.Count; i++)
+                            {
+                                points[i] = new Point3D(pl.Polygon[i].Coordinates.Item1, pl.Polygon[i].Coordinates.Item2, pl.Polygon[i].Coordinates.Item3);
+                            }
+
+                            points[points.Length - 1] = (Point3D)points[0].Clone();
+
+                            Plane fit = Utility.FitPlane(points); // puo' venire in un verso o nell'altro (verificare la soluzione, del piano con 3 punti: primo origine, secondo asse X, penultimo asse Y)
+
+                            Align3D al = new Align3D(fit, Plane.XY);
+
+                            Point3D[] onPlane = new Point3D[points.Length];
+
+                            for (int i = 0; i < points.Length; i++)
+                            {
+                                onPlane[i] = al * points[i];
+                            }
+
+                            // LinearPath lp = new LinearPath(points);
+
+                            Mesh local = UtilityEx.Triangulate(onPlane);
+                            if (local != null)
+                            {
+                                Mesh m3d = new Mesh(points, local.Triangles);
+
+                                global.MergeWith(m3d, true); // fonde i vertici, sarebbe meglio farla una volta sola alla fine
+                            }
+                            // devDept.Eyeshot.Entities.Region region = new devDept.Eyeshot.Entities.Region(lp);
+
+                            // region.TransformBy(trs);
+
+                            // viewportLayout1.Entities.Add(region, 0, Color.Yellow);
+                        }
+                    }
+                    result.MergeWith(global, true);
+                }
+            }
+            else if (reprItem is IfcFacetedBrep)  //controllare
+            {
+                IfcFacetedBrep facBrep = (IfcFacetedBrep)reprItem;
 
                 IfcClosedShell cs = facBrep.Outer;
 
@@ -180,27 +245,78 @@ namespace WindowsApplication1
                         // viewportLayout1.Entities.Add(region, 0, Color.Yellow);
                     }
                 }
-                m = global;
+                result = global;
             }
-            else if (repItem is IfcBoundingBox)
+            //else if (repItem is IfcBoundingBox)
+            //{
+            //    IfcBoundingBox bBox = (IfcBoundingBox)iRep.Items[0];
+            //    m = Mesh.CreateBox(bBox.XDim, bBox.YDim, bBox.ZDim);
+            //    m.Translate(bBox.Corner.Coordinates.Item1, bBox.Corner.Coordinates.Item1, bBox.Corner.Coordinates.Item1);
+            //}
+            else if (reprItem is IfcMappedItem)
             {
-                //IfcBoundingBox bBox = (IfcBoundingBox)iRep.Items[0];
-                //m = Mesh.CreateBox(bBox.XDim, bBox.YDim, bBox.ZDim);
-                //m.Translate(bBox.Corner.Coordinates.Item1, bBox.Corner.Coordinates.Item1, bBox.Corner.Coordinates.Item1);
-            }
-            else if (repItem is IfcBooleanClippingResult)
-            {
-                IfcBooleanClippingResult bcr = (IfcBooleanClippingResult)repItem;
-                Solid s = getSolidFromIfcBooleanClippingResult(bcr);
-                if (s != null)
-                    m = s.ConvertToMesh();
+                IfcMappedItem mapItem = (IfcMappedItem)reprItem;
+
+                if (!viewportLayout1.Blocks.ContainsKey(mapItem.Index.ToString()))
+                {
+                    IfcRepresentationMap reprMapSource = mapItem.MappingSource;
+
+                    Mesh mapSource = getMeshFromIfcRepresentationItem(reprMapSource.MappedRepresentation.Items[0]);
+
+                    Block b = new Block();
+
+                    if (mapSource != null)
+                    {
+                        Plane pln = getPlaneFromPosition((IfcAxis2Placement3D)reprMapSource.MappingOrigin);
+
+                        Align3D algn = new Align3D(Plane.XY, pln);
+
+                        mapSource.TransformBy(algn);
+
+                        b.Entities.Add(mapSource);
+
+                    }
+
+                    viewportLayout1.Blocks.Add(mapItem.Index.ToString(), b);
+                }
+
+                IfcCartesianTransformationOperator3D iTrs = (IfcCartesianTransformationOperator3D)mapItem.MappingTarget;
+
+                Point3D org = new Point3D(iTrs.LocalOrigin.Coordinates.Item1, iTrs.LocalOrigin.Coordinates.Item2, iTrs.LocalOrigin.Coordinates.Item3);
+
+                Vector3D vectorX;
+
+                if (iTrs.Axis1 != null)
+                    vectorX = new Vector3D(iTrs.Axis1.DirectionRatioX, iTrs.Axis1.DirectionRatioY, iTrs.Axis1.DirectionRatioZ);
+                else
+                    vectorX = new Vector3D(1, 0, 0);
+
+                Vector3D vectorY;
+
+                if (iTrs.Axis2 != null)
+                    vectorY = new Vector3D(iTrs.Axis2.DirectionRatioX, iTrs.Axis2.DirectionRatioY, iTrs.Axis2.DirectionRatioZ);
+                else
+                    vectorY = new Vector3D(0, 1, 0);
+
+                Vector3D vectorZ;
+
+                if (iTrs.Axis1 != null)
+                    vectorZ = new Vector3D(iTrs.Axis3.DirectionRatioX, iTrs.Axis3.DirectionRatioY, iTrs.Axis3.DirectionRatioZ);
+                else
+                    vectorZ = new Vector3D(0, 0, 1);
+
+                Transformation trs = new Transformation(org, vectorX, vectorY, vectorZ);
+
+                BlockReference br = new BlockReference(trs, mapItem.Index.ToString());
+
+                viewportLayout1.Entities.Add(br, 1, Color.Red);
             }
             else
             {
-                if (!debug.Contains("IfcRepresentationItem not supported: " + repItem.KeyWord))
-                    debug += "IfcRepresentationItem not supported: " + repItem.KeyWord + "\n";
+                if (!debug.Contains("IfcRepresentationItem not supported: " + reprItem.KeyWord))
+                    debug += "IfcRepresentationItem not supported: " + reprItem.KeyWord + "\n";
             }
-            return m;
+            return result;
         }
 
         private static Solid getSolidFromIfcBooleanClippingResult(IfcBooleanClippingResult bcr)
@@ -224,25 +340,19 @@ namespace WindowsApplication1
 
             //if (m != null)
             //    op2 = m.ConvertToSolid();
-            Triangle t1 = null, t2 =null;
+            
             if (bcr.SecondOperand is IfcPolygonalBoundedHalfSpace)
             {
                 IfcPolygonalBoundedHalfSpace polB = (IfcPolygonalBoundedHalfSpace)bcr.SecondOperand;
 
                 Plane pln = Conversion.getPlaneFromPosition(polB.Position);
 
-                PlanarEntity pe = new PlanarEntity(pln, 100);
-
-                pe.Regen(0);
-
-                 t1 = new Triangle(pe.Vertices[0], pe.Vertices[1], pe.Vertices[2]);
-                 t2 = new Triangle(pe.Vertices[0], pe.Vertices[2], pe.Vertices[3]);
-
-                //  Align3D align = new Align3D(Plane.XY, pln);
+                //Align3D align = new Align3D(Plane.XY, pln);
 
                 IfcPolyline p = (IfcPolyline)polB.PolygonalBoundary;
 
                 Point3D[] points = new Point3D[p.Points.Count];
+
                 for (int i = 0; i < p.Points.Count; i++)
                 {
                     points[i] = new Point3D(p.Points[i].Coordinates.Item1, p.Points[i].Coordinates.Item2, p.Points[i].Coordinates.Item3);
@@ -251,16 +361,14 @@ namespace WindowsApplication1
 
                 devDept.Eyeshot.Entities.Region region = new devDept.Eyeshot.Entities.Region(lp);
 
-               // region.TransformBy(align);
+                //region.TransformBy(align);
 
                 Vector3D extDir = Plane.XY.AxisZ;
 
-                if (!polB.AgreementFlag)
-                    extDir.Negate();
+                op2 = region.ExtrudeAsSolid(extDir * 100, 0.1); // 0.1 tolerance must be computed according to object size
 
-                op2 = region.ExtrudeAsSolid(extDir * 10, 0.1); // 0.1 tolerance must be computed according to object size
-
-                pln.Flip();
+                if (polB.AgreementFlag)
+                    pln.Flip();
 
                 op2.CutBy(pln);                
             }
@@ -271,8 +379,9 @@ namespace WindowsApplication1
                 IfcPlane ip = (IfcPlane)hs.BaseSurface;
 
                 Plane pln = Conversion.getPlaneFromPosition(ip.Position);
-                
-                //verificare flag agreement
+
+                if (hs.AgreementFlag)
+                    pln.Flip();
 
                 op1.CutBy(pln);
 
@@ -289,34 +398,27 @@ namespace WindowsApplication1
             //viewportLayout1.Entities.Add(op2, testLayer, Color.Blue);
             //return null;
 
-            if (!op1.IsClosed || !op2.IsClosed)
-            {
-                throw new Exception("brrr");
-            }
-
             Solid[] result;
-           // op1 = Solid.CreateCylinder(6, 20, 16);
-          //  op2 = Solid.CreateBox(10, 20, 30);
+
+            double tolerance = 0.0000001;
 
             switch (bcr.Operator)
             {
                 case IfcBooleanOperator.DIFFERENCE:
-                    result = Solid.Difference(op1, op2);    //su dll nuova e' possibile inserire parametro di tolleranza
+                    result = Solid.Difference(op1, op2, tolerance);    //su dll nuova e' possibile inserire parametro di tolleranza
                     break;
 
                 case IfcBooleanOperator.UNION:
-                    result = Solid.Union(op1, op2);
+                    result = Solid.Union(op1, op2, tolerance);
                     break;
 
                 case IfcBooleanOperator.INTERSECTION:
-                    result = Solid.Intersection(op1, op2);
+                    result = Solid.Intersection(op1, op2, tolerance);
                     break;
 
                 default:
                     return null;
             }
-
-            
 
             if (result != null)
             {
@@ -324,14 +426,12 @@ namespace WindowsApplication1
             }
             else
             {
-                WriteSTL ws = new WriteSTL(new Entity[] { op1, op2 }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), @"c:\devdept\booleanError\gino"+count+".stl", 0.01, true);
-                
+                WriteSTL ws = new WriteSTL(new Entity[] { op1, op2 }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), @"c:\devdept\booleanError\gino"+count+".stl", 0.01, true);   
                 count++;
                 ws.DoWork();
                 debug += "Error in boolean operation\n";
+                return op1;
             }
-
-            return null;
         }
 
         public static devDept.Eyeshot.Entities.Region getRegionFromIfcProfileDef(IfcProfileDef ipd)
@@ -371,16 +471,26 @@ namespace WindowsApplication1
             {
                 IfcArbitraryClosedProfileDef arProfDef = (IfcArbitraryClosedProfileDef)ipd;
 
-                IfcPolyline p = (IfcPolyline)arProfDef.OuterCurve;
-
-                Point3D[] points = new Point3D[p.Points.Count];
-                for (int i = 0; i < p.Points.Count; i++)
+                if (arProfDef.OuterCurve is IfcPolyline)
                 {
-                    points[i] = new Point3D(p.Points[i].Coordinates.Item1, p.Points[i].Coordinates.Item2, p.Points[i].Coordinates.Item3);
-                }
-                LinearPath lp = new LinearPath(points);
+                    IfcPolyline p = (IfcPolyline)arProfDef.OuterCurve;
 
-                region = new devDept.Eyeshot.Entities.Region(lp);
+                    Point3D[] points = new Point3D[p.Points.Count];
+
+                    for (int i = 0; i < p.Points.Count; i++)
+                    {
+                        points[i] = new Point3D(p.Points[i].Coordinates.Item1, p.Points[i].Coordinates.Item2, p.Points[i].Coordinates.Item3);
+                    }
+                    LinearPath lp = new LinearPath(points);
+
+                    region = new devDept.Eyeshot.Entities.Region(lp);
+                }
+                else if (arProfDef.OuterCurve is IfcCompositeCurve)
+                {
+                    IfcCompositeCurve cc = (IfcCompositeCurve)arProfDef.OuterCurve;
+
+                    
+                }
             }
             else
             {
@@ -399,5 +509,6 @@ namespace WindowsApplication1
 
         public static string Debug { get { return debug; } }
 
+        public static List<Entity> DebugEntity { get { return debugEntityList; } }
     }
 }
