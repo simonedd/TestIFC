@@ -13,6 +13,7 @@ using System.Collections;
 using System.Linq;
 using GeometryGym.Ifc;
 using System.Diagnostics;
+using devDept.Eyeshot.Translators;
 
 namespace WindowsApplication1
 {
@@ -20,15 +21,25 @@ namespace WindowsApplication1
     {
         private int testLayer;
 
+        private int count = 0;
+
         private string debug = "";
 
-        private Transformation trs;
+        private Transformation entityTrs;
 
         private bool _treeModify;
 
         public Form1()
         {
             InitializeComponent();
+
+            viewportLayout1.Backface.ColorMethod = backfaceColorMethodType.SingleColor;
+            //viewportLayout1.ShowCurveDirection = true;
+            //viewportLayout1.DisplayMode = displayType.Shaded;
+
+            //viewportLayout1.Layers.TurnOff("testLayer");
+            //viewportLayout1.Layers.TurnOff("Default");
+
 
             // Listens the events to handle the tree synchronization
             viewportLayout1.MouseDown += ViewportLayout1_MouseDown;
@@ -49,6 +60,7 @@ namespace WindowsApplication1
             String[] handleElements = { "IfcBeam", "IfcColumn", "IfcSlab", "IfcStair", "IfcPile", "IfcFooting", "IfcWallStandardCase", "IfcWindow", "IfcDoor", "IfcBuildingElementProxy" };
 
             testLayer = viewportLayout1.Layers.Add("testLayer", Color.Red);
+           int testLayer1 = viewportLayout1.Layers.Add("onPlane", Color.Blue);
 
             viewportLayout1.Layers[0].Name = "Default";
             viewportLayout1.Layers[0].Color = Color.Gray;
@@ -56,8 +68,9 @@ namespace WindowsApplication1
             //DatabaseIfc db = new DatabaseIfc("C:\\devdept\\IFC Model.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\MOD-Padrão\\MOD-Padrão.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\Blueberry031105_Complete_optimized.ifc");
-            DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\c_rvt8_Townhouse.ifc");
-            
+            //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\c_rvt8_Townhouse.ifc");
+            DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Samples\\01 Fire Protection.ifc");
+            //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Samples\\ArchiCAD IFC Buildsoft.ifc");
 
             IfcProject project = db.Project;
 
@@ -68,15 +81,13 @@ namespace WindowsApplication1
             //ci sono piu elementi uguali ( stesso mark )
             foreach (IfcBuildingElement element in elements)
             {
-                if (/*handleElements.Contains(element.KeyWord) && */element.Placement!= null && element.Representation != null)
+                if (/*element.GlobalId.StartsWith("3sI15rYlH4SAWbaKAYRQ04") &&/*handleElements.Contains(element.KeyWord) && */element.Placement!= null && element.Representation != null)
                 {   
-                    trs = Conversion.getPlacementTransformtion((IfcLocalPlacement)element.Placement);
-
-                    
+                    entityTrs = Conversion.getPlacementTransformtion((IfcLocalPlacement)element.Placement);
 
                     IfcProductRepresentation prodRep = (IfcProductRepresentation)element.Representation;
 
-                    Entity entity = Conversion.getEntityFromIfcProductRepresentation(prodRep, viewportLayout1);
+                    Entity entity = Conversion.getEntityFromIfcProductRepresentation(prodRep, viewportLayout1, entityTrs);
 
                     #region Color
                     //try
@@ -111,32 +122,47 @@ namespace WindowsApplication1
 
                     if(entity != null)
                     {
-                        entity.TransformBy(trs);
+                        entity.TransformBy(entityTrs);
 
-                        if (element.HasOpenings.Count > 0 )//&& entity is Mesh)    //gestire opening se non e mesh
+                        if (element.HasOpenings.Count > 0 && (entity is Solid || entity is Mesh))    //possibile opening su entita che non e' solid o mesh ??
                         {
-                            Mesh m = (Mesh)entity;
+                            Solid entitySolid;
 
-                            Solid entitySolid = m.ConvertToSolid();
+                            if (entity is Mesh)
+                                entitySolid = ((Mesh)entity).ConvertToSolid();
+                            else
+                                entitySolid = (Solid)entity;
 
                             foreach (IfcRelVoidsElement relVE in element.HasOpenings)
                             {
-                                Mesh openingMesh = (Mesh)Conversion.getEntityFromIfcProductRepresentation(relVE.RelatedOpeningElement.Representation, viewportLayout1);
+                                Entity openingEntity = Conversion.getEntityFromIfcProductRepresentation(relVE.RelatedOpeningElement.Representation, viewportLayout1);
 
                                 Transformation opTrs = Conversion.getPlacementTransformtion((IfcLocalPlacement)relVE.RelatedOpeningElement.Placement);
 
-                                openingMesh.TransformBy(opTrs);
+                                openingEntity.TransformBy(opTrs);
 
-                                Solid openingSolid = openingMesh.ConvertToSolid();
+                                Solid openingSolid;
+
+                                if (openingEntity is Mesh)
+                                    openingSolid = ((Mesh)openingEntity).ConvertToSolid();
+                                else
+                                    openingSolid = (Solid)openingEntity;
 
                                 Solid[] result;
 
                                 result = Solid.Difference(entitySolid, openingSolid, 0.00001);
 
                                 if (result != null)
+                                {
                                     entitySolid = result[0];
+                                }
                                 else
-                                    debug += "Error in boolean operation\n";
+                                {
+                                    WriteSTL ws = new WriteSTL(new Entity[] { entitySolid, openingSolid }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), @"c:\devdept\booleanError\" + count + " " + element.GlobalId + ".stl", 0.01, true);
+                                    count++;
+                                    ws.DoWork();
+                                    debug += "Error in opening boolean operation\n";
+                                }
                             }
                             entity = entitySolid;
                         }
@@ -160,14 +186,8 @@ namespace WindowsApplication1
 
             Debug.WriteLine(debug);
 
-            viewportLayout1.Entities.AddRange(Conversion.DebugEntity, testLayer);
-
             TreeViewManager.PopulateTree(modelTree, viewportLayout1.Entities.ToList(), viewportLayout1.Blocks);
 
-            //viewportLayout1.DisplayMode = displayType.Shaded;
-
-            //viewportLayout1.Layers.TurnOff("testLayer");
-            //viewportLayout1.Layers.TurnOff("Default");
             viewportLayout1.ZoomFit();
         }
 
