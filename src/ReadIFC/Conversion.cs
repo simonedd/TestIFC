@@ -14,6 +14,7 @@ using System.Linq;
 using GeometryGym.Ifc;
 using System.Diagnostics;
 using devDept.Eyeshot.Translators;
+using devDept.Eyeshot.Triangulation;
 
 namespace WindowsApplication1
 {
@@ -150,51 +151,117 @@ namespace WindowsApplication1
 
                     Mesh global = new Mesh(0, 0, Mesh.natureType.Plain);
 
-                    foreach (IfcFace face in cfs.CfsFaces)
+                    foreach (IfcFace face in cfs.CfsFaces)           // ho una faccia in piu'
                     {
-                        foreach (IfcFaceBound fb in face.Bounds)
+                        foreach (IfcFaceBound fb in face.Bounds)        // al massimo 2 ? profilo esterno e interno
                         {
-                            IfcPolyloop pl = (IfcPolyloop)fb.Bound;
+                            IfcFaceBound ifb = (IfcFaceBound)fb;
 
-                            Point3D[] points = new Point3D[pl.Polygon.Count + 1];
+                            // bool sense = ifb.mOrientation;
 
-                            for (int i = 0; i < pl.Polygon.Count; i++)
-                            {
-                                points[i] = new Point3D(pl.Polygon[i].Coordinates.Item1, pl.Polygon[i].Coordinates.Item2, pl.Polygon[i].Coordinates.Item3);
+                            if (fb is IfcFaceOuterBound)
+                            {// if fb is IfcFaceOuterBound ??
+
+                                IfcFaceOuterBound ifob = (IfcFaceOuterBound)fb;
+
+                                IfcPolyloop pl = (IfcPolyloop)fb.Bound;
+
+                                //Point3D[] points = new Point3D[pl.Polygon.Count];
+                                //Point3D[] copy = new Point3D[pl.Polygon.Count];
+
+                                //for (int i = 0; i < pl.Polygon.Count; i++)
+                                //{
+                                //    points[i] = new Point3D(pl.Polygon[i].Coordinates.Item1, pl.Polygon[i].Coordinates.Item2, pl.Polygon[i].Coordinates.Item3);
+                                //    copy[i] = (Point3D)points[i].Clone();
+                                //}
+
+                                //if (!points[0].Equals(points[points.Length - 1]))
+                                //{
+                                //    Array.Resize(ref points, points.Length + 1);
+                                //    Array.Resize(ref copy, copy.Length + 1);
+
+                                //    points[points.Length - 1] = (Point3D)points[0].Clone();
+                                //    copy[points.Length - 1] = (Point3D)points[0].Clone();
+                                //}
+
+                                List<Point3D> pLIst = new List<Point3D>();
+
+                                for (int i = 0; i < pl.Polygon.Count; i++)
+                                {
+                                    Point3D p = getPoint3DFromIfcCartesianPoint(pl.Polygon[i]);
+
+                                    if (!pLIst.Contains(p))                     // non copio punti uguali !!
+                                        pLIst.Add(p);
+                                }
+
+                                Point3D[] points = pLIst.ToArray();
+
+                                if (!points[0].Equals(points[points.Length - 1]))
+                                {
+                                    Array.Resize(ref points, points.Length + 1);
+
+                                    points[points.Length - 1] = (Point3D)points[0].Clone();
+                                }
+
+                                Array.Reverse(points);
+
+                                Point3D[] onPlane = points;         //non li porto sul piano
+
+                                //Plane fit = Utility.FitPlane(points); // puo' venire in un verso o nell'altro (verificare la soluzione, del piano con 3 punti: primo origine, secondo asse X, penultimo asse Y)
+
+                                ////  Plane fit = new Plane(points[0], Vector3D.Subtract(points[1], points[0]), Vector3D.Subtract(points[points.Length - 1], points[0]));
+
+                                //Align3D al = new Align3D(fit, Plane.XY);
+
+                                //Point3D[] onPlane = new Point3D[points.Length];
+
+                                //for (int i = 0; i < points.Length; i++)
+                                //{
+                                //    onPlane[i] = al * points[i];
+                                //}
+
+                                //if (Utility.IsOrientedClockwise(onPlane))       // portandoli sul piano alcuni vanno in senso antiorario(come points) altri orario
+                                //{
+                                //    Array.Reverse(onPlane);
+                                //}
+
+
+
+                                //Entity lp = new LinearPath(points);
+
+                                //lp.TransformBy(entityTrs);
+
+                                //viewportLayout1.Entities.Add(lp, 1);
+
+                                //Entity lpo = new LinearPath(onPlane);
+
+                                //viewportLayout1.Entities.Add(lpo, 2);
+
+                                if (onPlane.Length > 3)
+                                {
+                                    Mesh local = new devDept.Eyeshot.Entities.Region(new LinearPath(onPlane)).ConvertToMesh(0, Mesh.natureType.Plain);
+
+                                    //viewportLayout1.Entities.Add(local, 1);
+
+                                    //if (local != null)
+                                    //{
+                                    //    Mesh m3d = new Mesh(points, local.Triangles);  //controlla che tr nnn siano 0
+
+                                    //    viewportLayout1.Entities.Add(m3d, 1);
+
+                                    //    //global.MergeWith(m3d, true); // fonde i vertici, sarebbe meglio farla una volta sola alla fine
+                                    //}
+
+                                    global.MergeWith(local, true); // fonde i vertici, sarebbe meglio farla una volta sola alla fine
+
+                                    // devDept.Eyeshot.Entities.Region region = new devDept.Eyeshot.Entities.Region(lp);
+
+                                    // region.TransformBy(trs);
+
+                                    // viewportLayout1.Entities.Add(region, 0, Color.Yellow);
+                                }
                             }
 
-                            points[points.Length - 1] = (Point3D)points[0].Clone();
-
-                            Plane fit = Utility.FitPlane(points); // puo' venire in un verso o nell'altro (verificare la soluzione, del piano con 3 punti: primo origine, secondo asse X, penultimo asse Y)
-
-                            Align3D al = new Align3D(fit, Plane.XY);
-
-                            Point3D[] onPlane = new Point3D[points.Length];
-
-                            for (int i = 0; i < points.Length; i++)
-                            {
-                                onPlane[i] = al * points[i];
-                            }
-
-                            Mesh local = UtilityEx.Triangulate(onPlane);
-
-                            if (local != null)
-                            {
-                                Mesh m3d = new Mesh(points, local.Triangles);
-
-                                global.MergeWith(m3d, true); // fonde i vertici, sarebbe meglio farla una volta sola alla fine
-                            }
-
-                            LinearPath lp = new LinearPath(points);
-
-                            lp.TransformBy(entityTrs);
-
-                            viewportLayout1.Entities.Add(lp, 1, Color.Red);
-                            // devDept.Eyeshot.Entities.Region region = new devDept.Eyeshot.Entities.Region(lp);
-
-                            // region.TransformBy(trs);
-
-                            // viewportLayout1.Entities.Add(region, 0, Color.Yellow);
                         }
                     }
                     ((Mesh)result).MergeWith(global, true);
@@ -208,98 +275,108 @@ namespace WindowsApplication1
 
                 Mesh global = new Mesh(0, 0, Mesh.natureType.Plain);
 
-                foreach (IfcFace face in cs.CfsFaces)
+                foreach (IfcFace face in cs.CfsFaces)           // ho una faccia in piu'
                 {
-                    foreach (IfcFaceBound fb in face.Bounds)
+                    foreach (IfcFaceBound fb in face.Bounds)        // al massimo 2 ? profilo esterno e interno
                     {
                         IfcFaceBound ifb = (IfcFaceBound)fb;
 
-                       // bool sense = ifb.mOrientation;
+                        // bool sense = ifb.mOrientation;
 
-                       // if (fb is IfcFaceOuterBound)
-                        {
-                            if (fb is IfcFaceOuterBound)
-                            {// if fb is IfcFaceOuterBound ??
+                        if (fb is IfcFaceOuterBound)
+                        {// if fb is IfcFaceOuterBound ??
 
-                                IfcFaceOuterBound ifob = (IfcFaceOuterBound)fb;
-                                
-                                IfcPolyloop pl = (IfcPolyloop)fb.Bound;
+                            IfcFaceOuterBound ifob = (IfcFaceOuterBound)fb;
 
-                                Point3D[] points = new Point3D[pl.Polygon.Count];
-                                Point3D[] copy = new Point3D[pl.Polygon.Count];
+                            IfcPolyloop pl = (IfcPolyloop)fb.Bound;
 
-                                for (int i = 0; i < pl.Polygon.Count; i++)
-                                {
-                                    points[i] = new Point3D(pl.Polygon[i].Coordinates.Item1, pl.Polygon[i].Coordinates.Item2, pl.Polygon[i].Coordinates.Item3);
-                                    copy[i] = (Point3D)points[i].Clone();
-                                }
+                            //Point3D[] points = new Point3D[pl.Polygon.Count];
+                            //Point3D[] copy = new Point3D[pl.Polygon.Count];
 
-                             
-                                /*
-                                WriteIGES wi = new WriteIGES(new Entity[] { new LinearPath(points) }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), "c:\\devdept\\ugo.igs", linearUnitsType.Meters);
+                            //for (int i = 0; i < pl.Polygon.Count; i++)
+                            //{
+                            //    points[i] = new Point3D(pl.Polygon[i].Coordinates.Item1, pl.Polygon[i].Coordinates.Item2, pl.Polygon[i].Coordinates.Item3);
+                            //    copy[i] = (Point3D)points[i].Clone();
+                            //}
 
-                                wi.DoWork();
-                                */
-                                if (!points[0].Equals(points[points.Length - 1]))
-                                {
-                                    Array.Resize(ref points, points.Length + 1);
-                                    Array.Resize(ref copy, copy.Length + 1);
+                            //if (!points[0].Equals(points[points.Length - 1]))
+                            //{
+                            //    Array.Resize(ref points, points.Length + 1);
+                            //    Array.Resize(ref copy, copy.Length + 1);
 
-                                    points[points.Length - 1] = (Point3D)points[0].Clone();
-                                    copy[points.Length - 1] = (Point3D)points[0].Clone();
-                                }
+                            //    points[points.Length - 1] = (Point3D)points[0].Clone();
+                            //    copy[points.Length - 1] = (Point3D)points[0].Clone();
+                            //}
+
+                            List<Point3D> pLIst = new List<Point3D>();              
+
+                            for (int i = 0; i < pl.Polygon.Count; i++)
+                            {
+                                Point3D p = getPoint3DFromIfcCartesianPoint(pl.Polygon[i]);
+
+                                if (!pLIst.Contains(p))                     // non copio punti uguali !!
+                                    pLIst.Add(p);
+                            }
+
+                            Point3D[] points = pLIst.ToArray();
+
+                            if (!points[0].Equals(points[points.Length - 1]))
+                            {
+                                Array.Resize(ref points, points.Length + 1);
+
+                                points[points.Length - 1] = (Point3D)points[0].Clone();
+                            }
+
+                            Array.Reverse(points);
+
+                            Point3D[] onPlane = points;         //non li porto sul piano
+
+                            //Plane fit = Utility.FitPlane(points); // puo' venire in un verso o nell'altro (verificare la soluzione, del piano con 3 punti: primo origine, secondo asse X, penultimo asse Y)
+
+                            ////  Plane fit = new Plane(points[0], Vector3D.Subtract(points[1], points[0]), Vector3D.Subtract(points[points.Length - 1], points[0]));
+
+                            //Align3D al = new Align3D(fit, Plane.XY);
+
+                            //Point3D[] onPlane = new Point3D[points.Length];
+
+                            //for (int i = 0; i < points.Length; i++)
+                            //{
+                            //    onPlane[i] = al * points[i];
+                            //}
+
+                            //if (Utility.IsOrientedClockwise(onPlane))       // portandoli sul piano alcuni vanno in senso antiorario(come points) altri orario
+                            //{
+                            //    Array.Reverse(onPlane);
+                            //}
 
 
-                                //Entity lp = new LinearPath(copy);
 
-                                //lp.TransformBy(entityTrs);
+                            //Entity lp = new LinearPath(points);
 
-                                //viewportLayout1.Entities.Add(lp, 1);
+                            //lp.TransformBy(entityTrs);
 
+                            //viewportLayout1.Entities.Add(lp, 1);
 
+                            //Entity lpo = new LinearPath(onPlane);
 
-                                Plane fit = Utility.FitPlane(points); // puo' venire in un verso o nell'altro (verificare la soluzione, del piano con 3 punti: primo origine, secondo asse X, penultimo asse Y)
+                            //viewportLayout1.Entities.Add(lpo, 2);
 
-                              //  Plane fit = new Plane(points[0], Vector3D.Subtract(points[1], points[0]), Vector3D.Subtract(points[points.Length - 1], points[0]));
+                            if (onPlane.Length > 3)
+                            {
+                                Mesh local = new devDept.Eyeshot.Entities.Region(new LinearPath(onPlane)).ConvertToMesh(0, Mesh.natureType.Plain);
 
-                                Align3D al = new Align3D(fit, Plane.XY);
+                                //viewportLayout1.Entities.Add(local, 1);
 
-                                Point3D[] onPlane = new Point3D[points.Length];
+                                //if (local != null)
+                                //{
+                                //    Mesh m3d = new Mesh(points, local.Triangles);  //controlla che tr nnn siano 0
 
-                                for (int i = 0; i < points.Length; i++)
-                                {
-                                    onPlane[i] = al * points[i];
-                                }
-                             
-                                if (Utility.IsOrientedClockwise(onPlane))
-                                {
-                                    Array.Reverse(points);
-                                    Array.Reverse(onPlane);
-                                }
+                                //    viewportLayout1.Entities.Add(m3d, 1);
 
-                                //Entity lpo = new LinearPath(onPlane);
+                                //    //global.MergeWith(m3d, true); // fonde i vertici, sarebbe meglio farla una volta sola alla fine
+                                //}
 
-                                //viewportLayout1.Entities.Add(lpo, 2);
-
-                                //onPlane = new Point3D[] { new Point3D(0,0),
-                                //    new Point3D(4,0),
-                                //    new Point3D(4,4),
-                                //    new Point3D(2,4),
-                                //    new Point3D(2,2),
-                                //    new Point3D(0,2),
-                                //    new Point3D(0,0)
-                                //};
-                                
-                                Mesh local = UtilityEx.Triangulate(onPlane);
-                                
-                                //viewportLayout1.Entities.Add(local, 2);
-
-                                if (local != null)
-                                {
-                                    Mesh m3d = new Mesh(points, local.Triangles);
-
-                                    global.MergeWith(m3d, false); // fonde i vertici, sarebbe meglio farla una volta sola alla fine
-                                }
+                                global.MergeWith(local, true); // fonde i vertici, sarebbe meglio farla una volta sola alla fine
 
                                 // devDept.Eyeshot.Entities.Region region = new devDept.Eyeshot.Entities.Region(lp);
 
@@ -308,6 +385,7 @@ namespace WindowsApplication1
                                 // viewportLayout1.Entities.Add(region, 0, Color.Yellow);
                             }
                         }
+                        
                     }
                 }
                 result = global;

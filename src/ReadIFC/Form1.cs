@@ -34,8 +34,8 @@ namespace WindowsApplication1
             InitializeComponent();
 
             viewportLayout1.Backface.ColorMethod = backfaceColorMethodType.SingleColor;
-            //viewportLayout1.ShowCurveDirection = true;
-            //viewportLayout1.DisplayMode = displayType.Shaded;
+            viewportLayout1.ShowCurveDirection = true;
+            viewportLayout1.DisplayMode = displayType.Shaded;
 
             //viewportLayout1.Layers.TurnOff("testLayer");
             //viewportLayout1.Layers.TurnOff("Default");
@@ -68,8 +68,8 @@ namespace WindowsApplication1
             //DatabaseIfc db = new DatabaseIfc("C:\\devdept\\IFC Model.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\MOD-Padrão\\MOD-Padrão.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\Blueberry031105_Complete_optimized.ifc");
-            //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\c_rvt8_Townhouse.ifc");
-            DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Samples\\01 Fire Protection.ifc");
+            DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\c_rvt8_Townhouse.ifc");
+            //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Samples\\01 Fire Protection.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Samples\\ArchiCAD IFC Buildsoft.ifc");
 
             IfcProject project = db.Project;
