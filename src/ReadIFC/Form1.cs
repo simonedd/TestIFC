@@ -33,8 +33,8 @@ namespace WindowsApplication1
         {
             InitializeComponent();
 
-            viewportLayout1.Backface.ColorMethod = backfaceColorMethodType.SingleColor;
-            viewportLayout1.ShowCurveDirection = true;
+            //viewportLayout1.Backface.ColorMethod = backfaceColorMethodType.SingleColor;
+            //viewportLayout1.ShowCurveDirection = true;
             viewportLayout1.DisplayMode = displayType.Shaded;
 
             //viewportLayout1.Layers.TurnOff("testLayer");
@@ -64,30 +64,36 @@ namespace WindowsApplication1
 
             viewportLayout1.Layers[0].Name = "Default";
             viewportLayout1.Layers[0].Color = Color.Gray;
-            
+
             //DatabaseIfc db = new DatabaseIfc("C:\\devdept\\IFC Model.ifc");
+            //DatabaseIfc db = new DatabaseIfc("C:\\devdept\\IFC\\Martti_Ahtisaaren_RAK.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\MOD-Padrão\\MOD-Padrão.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\Blueberry031105_Complete_optimized.ifc");
             DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\c_rvt8_Townhouse.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Samples\\01 Fire Protection.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Samples\\ArchiCAD IFC Buildsoft.ifc");
+            //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Samples\\Clinic_S_20110715_optimized.ifc");
 
             IfcProject project = db.Project;
 
             List<IfcBuildingElement> elements = project.Extract<IfcBuildingElement>();
 
             List<IfcSpatialElement> spElements = project.Extract<IfcSpatialElement>();
-            
+
+            List<IfcDistributionElement> distEle = project.Extract<IfcDistributionElement>();
             //ci sono piu elementi uguali ( stesso mark )
             foreach (IfcBuildingElement element in elements)
             {
-                if (/*element.GlobalId.StartsWith("3sI15rYlH4SAWbaKAYRQ04") &&/*handleElements.Contains(element.KeyWord) && */element.Placement!= null && element.Representation != null)
+                
+                if (/*element.GlobalId.StartsWith("1pBbzTjp5EV85QC8jigEY2") &&/*handleElements.Contains(element.KeyWord) && */element.Placement!= null && element.Representation != null)
                 {   
                     entityTrs = Conversion.getPlacementTransformtion((IfcLocalPlacement)element.Placement);
 
                     IfcProductRepresentation prodRep = (IfcProductRepresentation)element.Representation;
 
                     Entity entity = Conversion.getEntityFromIfcProductRepresentation(prodRep, viewportLayout1, entityTrs);
+
+                    
 
                     #region Color
                     //try
@@ -121,6 +127,149 @@ namespace WindowsApplication1
 #endregion
 
                     if(entity != null)
+                    {
+                        entity.TransformBy(entityTrs);
+
+                        //viewportLayout1.Entities.Add((Entity)entity.Clone(), 1);
+
+                        
+                        //hasOpening
+                        if (element.HasOpenings.Count > 0 )//&& (entity is Solid || entity is Mesh))    //possibile opening su entita che non e' solid o mesh ??
+                        {
+                            if (entity is Mesh)
+                            {
+                                Mesh m = (Mesh)entity;
+
+                                Mesh[] splittedMesh;
+
+                                splittedMesh = m.SplitDisjoint();
+
+                                if (splittedMesh.Length > 1)
+                                    debug += "splittedMesh.length > 1\n";
+
+                                foreach (IfcRelVoidsElement relVE in element.HasOpenings)
+                                {
+                                    Entity openingEntity = Conversion.getEntityFromIfcProductRepresentation(relVE.RelatedOpeningElement.Representation, viewportLayout1);
+
+                                    if (openingEntity != null)
+                                    {
+                                        Transformation opTrs = Conversion.getPlacementTransformtion((IfcLocalPlacement)relVE.RelatedOpeningElement.Placement);
+
+                                        openingEntity.TransformBy(opTrs);
+
+                                        Solid openingSolid;
+
+                                        if (openingEntity is Mesh)
+                                            openingSolid = ((Mesh)openingEntity).ConvertToSolid();
+                                        else
+                                            openingSolid = (Solid)openingEntity;
+
+                                        for (int i=0 ; i < splittedMesh.Length; i++)
+                                        {
+                                            //verificare collision? bound box?
+                                            Solid[] result;
+
+                                            Solid entitySolid = splittedMesh[i].ConvertToSolid();
+
+                                            //viewportLayout1.Entities.Add((Entity)openingSolid.Clone(), 1, Color.Green);
+
+                                            result = Solid.Difference(entitySolid, openingSolid, 0.001);
+
+                                            if (result != null)
+                                            {
+                                                splittedMesh[i] = result[0].ConvertToMesh();
+
+                                                break;
+                                            }
+                                            else
+                                            {
+                                                WriteSTL ws = new WriteSTL(new Entity[] { entitySolid, openingSolid }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), @"c:\devdept\booleanError\" + count + " " + element.GlobalId + ".stl", 0.01, true);
+                                                count++;
+                                                ws.DoWork();
+                                                debug += "Error in opening boolean operation(splitted Mesh)\n";
+                                            }
+                                        }
+                                    }
+                                }
+                                Mesh em = new Mesh(0, 0, Mesh.natureType.Smooth);
+
+                                foreach (Mesh mesh in splittedMesh)
+                                {
+                                    em.MergeWith(mesh, true);
+                                }
+                                entity = em;
+                            }
+                            else
+                            {
+                                Solid entitySolid = (Solid)entity;
+
+                                foreach (IfcRelVoidsElement relVE in element.HasOpenings)
+                                {
+                                    Entity openingEntity = Conversion.getEntityFromIfcProductRepresentation(relVE.RelatedOpeningElement.Representation, viewportLayout1);
+
+                                    if (openingEntity != null)
+                                    {
+                                        Transformation opTrs = Conversion.getPlacementTransformtion((IfcLocalPlacement)relVE.RelatedOpeningElement.Placement);
+
+                                        openingEntity.TransformBy(opTrs);
+
+                                        Solid openingSolid;
+
+                                        if (openingEntity is Mesh)
+                                            openingSolid = ((Mesh)openingEntity).ConvertToSolid();
+                                        else
+                                            openingSolid = (Solid)openingEntity;
+
+                                        Solid[] result;
+
+                                        //viewportLayout1.Entities.Add((Entity)openingSolid.Clone(), 1, Color.Green);
+
+                                        result = Solid.Difference(entitySolid, openingSolid, 0.001);
+
+                                        if (result != null)
+                                        {
+                                            entitySolid = result[0];
+                                        }
+                                        else
+                                        {
+                                            WriteSTL ws = new WriteSTL(new Entity[] { entitySolid, openingSolid }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), @"c:\devdept\booleanError\" + count + " " + element.GlobalId + ".stl", 0.01, true);
+                                            count++;
+                                            ws.DoWork();
+                                            debug += "Error in opening boolean operation\n";
+                                        }
+                                    }
+                                }
+                                entity = entitySolid;
+                            }
+                        }
+
+                        entity.EntityData = element.KeyWord + "|" + element.GlobalId;
+
+                        //entity.TransformBy(trs);
+
+                        viewportLayout1.Entities.Add(entity, 0);
+                    }
+
+                }
+                else
+                {
+                    if(!debug.Contains("IfcElement error: " + element.KeyWord))
+                        debug += "IfcElement error: " + element.KeyWord + "\n";
+                }
+            }
+
+            foreach (IfcDistributionElement element in distEle)
+            {
+
+                if (/*element.GlobalId.StartsWith("ciao") &&/*handleElements.Contains(element.KeyWord) && */element.Placement != null && element.Representation != null)
+                {
+                    entityTrs = Conversion.getPlacementTransformtion((IfcLocalPlacement)element.Placement);
+
+                    IfcProductRepresentation prodRep = (IfcProductRepresentation)element.Representation;
+
+                    Entity entity = Conversion.getEntityFromIfcProductRepresentation(prodRep, viewportLayout1, entityTrs);
+
+                    if (entity != null)
                     {
                         entity.TransformBy(entityTrs);
 
@@ -177,7 +326,7 @@ namespace WindowsApplication1
                 }
                 else
                 {
-                    if(!debug.Contains("IfcElement error: " + element.KeyWord))
+                    if (!debug.Contains("IfcElement error: " + element.KeyWord))
                         debug += "IfcElement error: " + element.KeyWord + "\n";
                 }
             }
