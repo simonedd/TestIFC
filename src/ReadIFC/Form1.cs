@@ -25,7 +25,7 @@ namespace WindowsApplication1
 
         private string debug = "";
 
-        private Transformation entityTrs;
+        private Transformation elementTrs = new Transformation(1);
 
         private bool _treeModify;
 
@@ -57,10 +57,8 @@ namespace WindowsApplication1
         {
             _treeModify = false;
 
-            String[] handleElements = { "IfcBeam", "IfcColumn", "IfcSlab", "IfcStair", "IfcPile", "IfcFooting", "IfcWallStandardCase", "IfcWindow", "IfcDoor", "IfcBuildingElementProxy" };
-
             testLayer = viewportLayout1.Layers.Add("testLayer", Color.Red);
-           int testLayer1 = viewportLayout1.Layers.Add("onPlane", Color.Blue);
+            int testLayer1 = viewportLayout1.Layers.Add("onPlane", Color.Blue);
 
             viewportLayout1.Layers[0].Name = "Default";
             viewportLayout1.Layers[0].Color = Color.Gray;
@@ -82,196 +80,88 @@ namespace WindowsApplication1
 
             List<IfcDistributionElement> distEle = project.Extract<IfcDistributionElement>();
             //ci sono piu elementi uguali ( stesso mark )
-            foreach (IfcBuildingElement element in elements)
-            {
-                
-                if (/*element.GlobalId.StartsWith("1pBbzTjp5EV85QC8jigEY2") &&/*handleElements.Contains(element.KeyWord) && */element.Placement!= null && element.Representation != null)
-                {   
-                    entityTrs = Conversion.getPlacementTransformtion((IfcLocalPlacement)element.Placement);
+            foreach (IfcBuildingElement ifcElement in elements)
+            {    
+                if (ifcElement.GlobalId.StartsWith("0tHB6cJjH63wzHjR6XgeCI") &&/**/ ifcElement.Decomposes == null)
+                {
+                    Entity eyeElement = null;
 
-                    IfcProductRepresentation prodRep = (IfcProductRepresentation)element.Representation;
-
-                    Entity entity = Conversion.getEntityFromIfcProductRepresentation(prodRep, viewportLayout1, entityTrs);
-
-                    
-
-                    #region Color
-                    //try
-                    //{
-                    //    IfcMaterialLayerSetUsage mls = (IfcMaterialLayerSetUsage)element.MaterialSelect;
-                    //    if (mls != null)
-                    //    {
-
-
-                    //        IfcPresentationStyleAssignment ps = (IfcPresentationStyleAssignment)mls.ForLayerSet.MaterialLayers[0].PrimaryMaterial.HasRepresentation.Representations[0].Items[0].Styles[0];
-                    //        IfcSurfaceStyle ss = (IfcSurfaceStyle)ps.Styles[0];
-                    //        IfcSurfaceStyleRendering ssr = (IfcSurfaceStyleRendering)ss.Styles[0];
-                    //        Color color = ssr.SurfaceColour.Colour;
-
-
-                    //        entity.ColorMethod = colorMethodType.byEntity;
-
-                    //        entity.Color = color;
-                    //    }
-                    //}
-                    //catch (Exception exc)
-                    //{
-                    //    Debug.Write(exc);
-                    //}
-                    //element.MaterialSelect.PrimaryMaterial.HasRepresentation.Representations[0].Items[0].Styles[0]....
-
-                    //fcPresentationStyleAssignment psa = (IfcPresentationStyleAssignment)extrAreaSolid.StyledByItem.Styles[0];
-                    //IfcSurfaceStyle ss = (IfcSurfaceStyle)psa.Styles[0];
-                    //IfcSurfaceStyleRendering ssr = (IfcSurfaceStyleRendering)ss.Styles[0];
-                    //Color color = ssr.SurfaceColour.Colour;
-#endregion
-
-                    if(entity != null)
+                    if (ifcElement.Placement != null)
                     {
-                        entity.TransformBy(entityTrs);
+                        elementTrs = Conversion.getPlacementTransformtion((IfcLocalPlacement)ifcElement.Placement);
+                    }
+                    IfcProductRepresentation prodRep = (IfcProductRepresentation)ifcElement.Representation;
 
-                        //viewportLayout1.Entities.Add((Entity)entity.Clone(), 1);
+                    if(prodRep != null)
+                        eyeElement = Conversion.getEntityFromIfcProductRepresentation(prodRep, viewportLayout1, elementTrs);
 
-                        
-                        //hasOpening
-                        if (element.HasOpenings.Count > 0 )//&& (entity is Solid || entity is Mesh))    //possibile opening su entita che non e' solid o mesh ??
-                        {
-                            if (entity is Mesh)
+                    if (eyeElement != null)
+                        eyeElement.TransformBy(elementTrs);
+
+                    if (ifcElement.IsDecomposedBy.Count > 0)
+                    {
+                        Block b = new Block();
+
+                        foreach (IfcRelAggregates relAg in ifcElement.IsDecomposedBy)        //gestire se count > 1
+                        {                            
+                            foreach (IfcElement el in relAg.RelatedObjects)
                             {
-                                Mesh m = (Mesh)entity;
+                                Entity entity = Conversion.getEntityFromIfcProductRepresentation(el.Representation, viewportLayout1, elementTrs);  //gestire se entity is decomposet ( funz ricorsiva)
 
-                                Mesh[] splittedMesh;
+                                Transformation trs = Conversion.getPlacementTransformtion((IfcLocalPlacement)el.Placement);
 
-                                splittedMesh = m.SplitDisjoint();
-
-                                if (splittedMesh.Length > 1)
-                                    debug += "splittedMesh.length > 1\n";
-
-                                foreach (IfcRelVoidsElement relVE in element.HasOpenings)
+                                if (entity != null)
                                 {
-                                    Entity openingEntity = Conversion.getEntityFromIfcProductRepresentation(relVE.RelatedOpeningElement.Representation, viewportLayout1);
+                                    entity.TransformBy(trs);
 
-                                    if (openingEntity != null)
-                                    {
-                                        Transformation opTrs = Conversion.getPlacementTransformtion((IfcLocalPlacement)relVE.RelatedOpeningElement.Placement);
-
-                                        openingEntity.TransformBy(opTrs);
-
-                                        Solid openingSolid;
-
-                                        if (openingEntity is Mesh)
-                                            openingSolid = ((Mesh)openingEntity).ConvertToSolid();
-                                        else
-                                            openingSolid = (Solid)openingEntity;
-
-                                        for (int i=0 ; i < splittedMesh.Length; i++)
-                                        {
-                                            //verificare collision? bound box?
-                                            Solid[] result;
-
-                                            Solid entitySolid = splittedMesh[i].ConvertToSolid();
-
-                                            //viewportLayout1.Entities.Add((Entity)openingSolid.Clone(), 1, Color.Green);
-
-                                            result = Solid.Difference(entitySolid, openingSolid, 0.001);
-
-                                            if (result != null)
-                                            {
-                                                splittedMesh[i] = result[0].ConvertToMesh();
-
-                                                break;
-                                            }
-                                            else
-                                            {
-                                                WriteSTL ws = new WriteSTL(new Entity[] { entitySolid, openingSolid }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), @"c:\devdept\booleanError\" + count + " " + element.GlobalId + ".stl", 0.01, true);
-                                                count++;
-                                                ws.DoWork();
-                                                debug += "Error in opening boolean operation(splitted Mesh)\n";
-                                            }
-                                        }
-                                    }
+                                    b.Entities.Add(entity);
                                 }
-                                Mesh em = new Mesh(0, 0, Mesh.natureType.Smooth);
-
-                                foreach (Mesh mesh in splittedMesh)
-                                {
-                                    em.MergeWith(mesh, true);
-                                }
-                                entity = em;
-                            }
-                            else
-                            {
-                                Solid entitySolid = (Solid)entity;
-
-                                foreach (IfcRelVoidsElement relVE in element.HasOpenings)
-                                {
-                                    Entity openingEntity = Conversion.getEntityFromIfcProductRepresentation(relVE.RelatedOpeningElement.Representation, viewportLayout1);
-
-                                    if (openingEntity != null)
-                                    {
-                                        Transformation opTrs = Conversion.getPlacementTransformtion((IfcLocalPlacement)relVE.RelatedOpeningElement.Placement);
-
-                                        openingEntity.TransformBy(opTrs);
-
-                                        Solid openingSolid;
-
-                                        if (openingEntity is Mesh)
-                                            openingSolid = ((Mesh)openingEntity).ConvertToSolid();
-                                        else
-                                            openingSolid = (Solid)openingEntity;
-
-                                        Solid[] result;
-
-                                        //viewportLayout1.Entities.Add((Entity)openingSolid.Clone(), 1, Color.Green);
-
-                                        result = Solid.Difference(entitySolid, openingSolid, 0.001);
-
-                                        if (result != null)
-                                        {
-                                            entitySolid = result[0];
-                                        }
-                                        else
-                                        {
-                                            WriteSTL ws = new WriteSTL(new Entity[] { entitySolid, openingSolid }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), @"c:\devdept\booleanError\" + count + " " + element.GlobalId + ".stl", 0.01, true);
-                                            count++;
-                                            ws.DoWork();
-                                            debug += "Error in opening boolean operation\n";
-                                        }
-                                    }
-                                }
-                                entity = entitySolid;
                             }
                         }
+                        if (eyeElement != null)
+                            b.Entities.Add(eyeElement);
 
-                        entity.EntityData = element.KeyWord + "|" + element.GlobalId;
+                        viewportLayout1.Blocks.Add(ifcElement.GlobalId, b);
 
-                        //entity.TransformBy(trs);
+                        eyeElement = new BlockReference(ifcElement.GlobalId);
+                    }
 
-                        viewportLayout1.Entities.Add(entity, 0);
+                    if(eyeElement != null)
+                    {
+                        if (ifcElement.HasOpenings.Count > 0 )
+                        {
+                            eyeElement = this.createOpenings(eyeElement, ifcElement);
+                        }
+
+                        eyeElement.EntityData = ifcElement.KeyWord + "|" + ifcElement.GlobalId;
+    
+                        viewportLayout1.Entities.Add(eyeElement, 0);
                     }
 
                 }
                 else
                 {
-                    if(!debug.Contains("IfcElement error: " + element.KeyWord))
-                        debug += "IfcElement error: " + element.KeyWord + "\n";
+                    if(!debug.Contains("IfcElement error: " + ifcElement.KeyWord))
+                        debug += "IfcElement error: " + ifcElement.KeyWord + "\n";
                 }
             }
 
+
+            //da correggere come buildingElement
             foreach (IfcDistributionElement element in distEle)
             {
 
                 if (/*element.GlobalId.StartsWith("ciao") &&/*handleElements.Contains(element.KeyWord) && */element.Placement != null && element.Representation != null)
                 {
-                    entityTrs = Conversion.getPlacementTransformtion((IfcLocalPlacement)element.Placement);
+                    elementTrs = Conversion.getPlacementTransformtion((IfcLocalPlacement)element.Placement);
 
                     IfcProductRepresentation prodRep = (IfcProductRepresentation)element.Representation;
 
-                    Entity entity = Conversion.getEntityFromIfcProductRepresentation(prodRep, viewportLayout1, entityTrs);
+                    Entity entity = Conversion.getEntityFromIfcProductRepresentation(prodRep, viewportLayout1, elementTrs);
 
                     if (entity != null)
                     {
-                        entity.TransformBy(entityTrs);
+                        entity.TransformBy(elementTrs);
 
                         if (element.HasOpenings.Count > 0 && (entity is Solid || entity is Mesh))    //possibile opening su entita che non e' solid o mesh ??
                         {
@@ -338,6 +228,181 @@ namespace WindowsApplication1
             TreeViewManager.PopulateTree(modelTree, viewportLayout1.Entities.ToList(), viewportLayout1.Blocks);
 
             viewportLayout1.ZoomFit();
+        }
+
+        private Entity createOpenings (Entity eyeElement, IfcElement ifcElement)
+        {
+            //viewportLayout1.Entities.Add((Entity)eyeElement.Clone(), 1);
+
+            if(eyeElement is BlockReference)
+            {
+                BlockReference brElement = (BlockReference)eyeElement;
+
+                Block blockElement;
+
+                viewportLayout1.Blocks.TryGetValue(brElement.BlockName, out blockElement);
+
+                for(int i=0; i<blockElement.Entities.Count; i++)
+                {
+                    blockElement.Entities[i] = createOpenings(blockElement.Entities[i], ifcElement);
+                }
+                return eyeElement;
+            }
+            else if (eyeElement is Mesh)
+            {
+                Mesh m = (Mesh)eyeElement;
+
+                Mesh[] splittedMesh;
+
+                splittedMesh = m.SplitDisjoint();
+
+                if (splittedMesh.Length > 1)
+                    debug += "splittedMesh.length > 1\n";
+
+                foreach (IfcRelVoidsElement relVE in ifcElement.HasOpenings)
+                {
+                    Entity openingEntity = Conversion.getEntityFromIfcProductRepresentation(relVE.RelatedOpeningElement.Representation, viewportLayout1);
+
+                    viewportLayout1.Entities.Add((Entity)openingEntity.Clone(), 2);
+
+                    if (openingEntity != null)
+                    {
+                        Transformation opTrs = Conversion.getPlacementTransformtion((IfcLocalPlacement)relVE.RelatedOpeningElement.Placement);
+
+                        openingEntity.TransformBy(opTrs);
+
+                        Solid openingSolid;
+
+                        if (openingEntity is Mesh)
+                            openingSolid = ((Mesh)openingEntity).ConvertToSolid();
+                        else
+                            openingSolid = (Solid)openingEntity;
+
+                        for (int i = 0; i < splittedMesh.Length; i++)
+                        {
+                            //verificare collision? bound box?
+                            Solid[] result;
+
+                            Solid entitySolid = splittedMesh[i].ConvertToSolid();
+
+                            //viewportLayout1.Entities.Add((Entity)openingSolid.Clone(), 1, Color.Green);
+
+                            if (Utility.DoOverlap(entitySolid.BoxMin, entitySolid.BoxMax, openingSolid.BoxMin, openingSolid.BoxMax))
+                            {
+                                result = Solid.Difference(entitySolid, openingSolid, 0.001);
+                                
+                                if (result != null)
+                                {
+                                    splittedMesh[i] = result[0].ConvertToMesh();
+
+                                    break;
+                                }
+                                else
+                                {
+                                    WriteSTL ws = new WriteSTL(new Entity[] { entitySolid, openingSolid }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), @"c:\devdept\booleanError\" + count + " " + ifcElement.GlobalId + ".stl", 0.01, true);
+                                    count++;
+                                    ws.DoWork();
+                                    debug += "Error in opening boolean operation\n";
+                                }
+                            }
+                        }
+                    }
+                }
+                if (splittedMesh.Length > 1)
+                {
+                    Block b = new Block();
+
+                    foreach (Mesh mesh in splittedMesh)
+                    {
+                        b.Entities.Add(mesh);
+                    }
+                    viewportLayout1.Blocks.Add(ifcElement.GlobalId, b);
+
+                    eyeElement = new BlockReference(ifcElement.GlobalId);
+                }
+                else
+                {
+                    eyeElement = splittedMesh[0];
+                }
+            }
+            else
+            {
+                Solid entitySolid = (Solid)eyeElement;
+
+                foreach (IfcRelVoidsElement relVE in ifcElement.HasOpenings)
+                {
+                    Entity openingEntity = Conversion.getEntityFromIfcProductRepresentation(relVE.RelatedOpeningElement.Representation, viewportLayout1);
+
+                    if (openingEntity != null)
+                    {
+                        Transformation opTrs = Conversion.getPlacementTransformtion((IfcLocalPlacement)relVE.RelatedOpeningElement.Placement);
+
+                        openingEntity.TransformBy(opTrs);
+
+                        Solid openingSolid;
+
+                        if (openingEntity is Mesh)
+                            openingSolid = ((Mesh)openingEntity).ConvertToSolid();
+                        else
+                            openingSolid = (Solid)openingEntity;
+
+                        Solid[] result;
+
+                        //viewportLayout1.Entities.Add((Entity)openingSolid.Clone(), 1, Color.Green);
+
+                        result = Solid.Difference(entitySolid, openingSolid, 0.001);
+
+                        if (result != null)
+                        {
+                            entitySolid = result[0];
+                        }
+                        else
+                        {
+                            WriteSTL ws = new WriteSTL(new Entity[] { entitySolid, openingSolid }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), @"c:\devdept\booleanError\" + count + " " + ifcElement.GlobalId + ".stl", 0.01, true);
+                            count++;
+                            ws.DoWork();
+                            debug += "Error in opening boolean operation\n";
+                        }
+                    }
+                }
+                eyeElement = entitySolid;
+            }
+            return eyeElement;
+        }
+
+        private Color getColor()
+        {
+            Color color = Color.AliceBlue;
+            //try
+            //{
+            //    IfcMaterialLayerSetUsage mls = (IfcMaterialLayerSetUsage)element.MaterialSelect;
+            //    if (mls != null)
+            //    {
+
+
+            //        IfcPresentationStyleAssignment ps = (IfcPresentationStyleAssignment)mls.ForLayerSet.MaterialLayers[0].PrimaryMaterial.HasRepresentation.Representations[0].Items[0].Styles[0];
+            //        IfcSurfaceStyle ss = (IfcSurfaceStyle)ps.Styles[0];
+            //        IfcSurfaceStyleRendering ssr = (IfcSurfaceStyleRendering)ss.Styles[0];
+            //        Color color = ssr.SurfaceColour.Colour;
+
+
+            //        entity.ColorMethod = colorMethodType.byEntity;
+
+            //        entity.Color = color;
+            //    }
+            //}
+            //catch (Exception exc)
+            //{
+            //    Debug.Write(exc);
+            //}
+            //element.MaterialSelect.PrimaryMaterial.HasRepresentation.Representations[0].Items[0].Styles[0]....
+
+            //fcPresentationStyleAssignment psa = (IfcPresentationStyleAssignment)extrAreaSolid.StyledByItem.Styles[0];
+            //IfcSurfaceStyle ss = (IfcSurfaceStyle)psa.Styles[0];
+            //IfcSurfaceStyleRendering ssr = (IfcSurfaceStyleRendering)ss.Styles[0];
+            //Color color = ssr.SurfaceColour.Colour;
+
+            return color;
         }
 
         private void button1_Click_1(object sender, EventArgs e)

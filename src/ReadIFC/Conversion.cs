@@ -139,7 +139,9 @@ namespace WindowsApplication1
                     {
                         //region.TransformBy(trs * align2);
                         region.TransformBy(align);
-                        
+
+                        viewportLayout1.Entities.Add((Entity)region.Clone(), 1);
+
                         result = region.ExtrudeAsMesh(extDir * extrAreaSolid.Depth, 0.1, Mesh.natureType.Plain); // 0.1 tolerance must be computed according to object size
 
                         //viewportLayout1.Entities.Add(result, 1);
