@@ -35,7 +35,7 @@ namespace WindowsApplication1
 
             //viewportLayout1.Backface.ColorMethod = backfaceColorMethodType.SingleColor;
             //viewportLayout1.ShowCurveDirection = true;
-            viewportLayout1.DisplayMode = displayType.Shaded;
+            //viewportLayout1.DisplayMode = displayType.Shaded;
 
             //viewportLayout1.Layers.TurnOff("testLayer");
             //viewportLayout1.Layers.TurnOff("Default");
@@ -67,7 +67,14 @@ namespace WindowsApplication1
             //DatabaseIfc db = new DatabaseIfc("C:\\devdept\\IFC\\Martti_Ahtisaaren_RAK.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\MOD-Padrão\\MOD-Padrão.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\Blueberry031105_Complete_optimized.ifc");
-            DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\c_rvt8_Townhouse.ifc");
+            //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\Clinic_Handover_WithProperty3.ifc");      //Gym exception
+            //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\Duplex_A_20110907.ifc");
+            //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\NER-38d.ifc");
+            //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\NHS Office.ifc");
+            //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\Office_A_20110811.ifc");
+            DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\porur duplex.ifc");
+            //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\c_rvt8_Townhouse.ifc");
+
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Samples\\01 Fire Protection.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Samples\\ArchiCAD IFC Buildsoft.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Samples\\Clinic_S_20110715_optimized.ifc");
@@ -82,13 +89,13 @@ namespace WindowsApplication1
             //ci sono piu elementi uguali ( stesso mark )
             foreach (IfcBuildingElement ifcElement in elements)
             {    
-                if (ifcElement.GlobalId.StartsWith("0tHB6cJjH63wzHjR6XgeCI") &&/**/ ifcElement.Decomposes == null)
+                if (ifcElement.GlobalId.StartsWith("0EUjL1KGjFNeBk1a2NZWoy") &&/**/ ifcElement.Decomposes == null)
                 {
                     Entity eyeElement = null;
 
                     if (ifcElement.Placement != null)
                     {
-                        elementTrs = Conversion.getPlacementTransformtion((IfcLocalPlacement)ifcElement.Placement);
+                        elementTrs = Conversion.getPlacementTransformtion(ifcElement.Placement);
                     }
                     IfcProductRepresentation prodRep = (IfcProductRepresentation)ifcElement.Representation;
 
@@ -108,7 +115,7 @@ namespace WindowsApplication1
                             {
                                 Entity entity = Conversion.getEntityFromIfcProductRepresentation(el.Representation, viewportLayout1, elementTrs);  //gestire se entity is decomposet ( funz ricorsiva)
 
-                                Transformation trs = Conversion.getPlacementTransformtion((IfcLocalPlacement)el.Placement);
+                                Transformation trs = Conversion.getPlacementTransformtion(el.Placement);
 
                                 if (entity != null)
                                 {
@@ -137,12 +144,6 @@ namespace WindowsApplication1
     
                         viewportLayout1.Entities.Add(eyeElement, 0);
                     }
-
-                }
-                else
-                {
-                    if(!debug.Contains("IfcElement error: " + ifcElement.KeyWord))
-                        debug += "IfcElement error: " + ifcElement.KeyWord + "\n";
                 }
             }
 
@@ -153,7 +154,7 @@ namespace WindowsApplication1
 
                 if (/*element.GlobalId.StartsWith("ciao") &&/*handleElements.Contains(element.KeyWord) && */element.Placement != null && element.Representation != null)
                 {
-                    elementTrs = Conversion.getPlacementTransformtion((IfcLocalPlacement)element.Placement);
+                    elementTrs = Conversion.getPlacementTransformtion(element.Placement);
 
                     IfcProductRepresentation prodRep = (IfcProductRepresentation)element.Representation;
 
@@ -176,7 +177,7 @@ namespace WindowsApplication1
                             {
                                 Entity openingEntity = Conversion.getEntityFromIfcProductRepresentation(relVE.RelatedOpeningElement.Representation, viewportLayout1);
 
-                                Transformation opTrs = Conversion.getPlacementTransformtion((IfcLocalPlacement)relVE.RelatedOpeningElement.Placement);
+                                Transformation opTrs = Conversion.getPlacementTransformtion(relVE.RelatedOpeningElement.Placement);
 
                                 openingEntity.TransformBy(opTrs);
 
@@ -263,11 +264,11 @@ namespace WindowsApplication1
                 {
                     Entity openingEntity = Conversion.getEntityFromIfcProductRepresentation(relVE.RelatedOpeningElement.Representation, viewportLayout1);
 
-                    viewportLayout1.Entities.Add((Entity)openingEntity.Clone(), 2);
+                    //viewportLayout1.Entities.Add((Entity)openingEntity.Clone(), 2);
 
                     if (openingEntity != null)
                     {
-                        Transformation opTrs = Conversion.getPlacementTransformtion((IfcLocalPlacement)relVE.RelatedOpeningElement.Placement);
+                        Transformation opTrs = Conversion.getPlacementTransformtion(relVE.RelatedOpeningElement.Placement);
 
                         openingEntity.TransformBy(opTrs);
 
@@ -333,9 +334,9 @@ namespace WindowsApplication1
                 {
                     Entity openingEntity = Conversion.getEntityFromIfcProductRepresentation(relVE.RelatedOpeningElement.Representation, viewportLayout1);
 
-                    if (openingEntity != null)
+                    if (openingEntity != null && (openingEntity is Mesh || openingEntity is Solid))
                     {
-                        Transformation opTrs = Conversion.getPlacementTransformtion((IfcLocalPlacement)relVE.RelatedOpeningElement.Placement);
+                        Transformation opTrs = Conversion.getPlacementTransformtion(relVE.RelatedOpeningElement.Placement);
 
                         openingEntity.TransformBy(opTrs);
 
@@ -345,6 +346,7 @@ namespace WindowsApplication1
                             openingSolid = ((Mesh)openingEntity).ConvertToSolid();
                         else
                             openingSolid = (Solid)openingEntity;
+
 
                         Solid[] result;
 

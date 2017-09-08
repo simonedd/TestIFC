@@ -24,42 +24,69 @@ namespace WindowsApplication1
 
         private static string debug = String.Empty;
 
-        public static Transformation getPlacementTransformtion(IfcLocalPlacement ilp)
+        public static Transformation getPlacementTransformtion(IfcObjectPlacement obPL)
         {
-            IfcAxis2Placement3D rp = (IfcAxis2Placement3D)ilp.RelativePlacement;
+            if (obPL is IfcLocalPlacement)
+            {
+                IfcLocalPlacement locPl = (IfcLocalPlacement)obPL;
 
-            Plane pln = Conversion.getPlaneFromPosition(rp);
+                Plane pln = Conversion.getPlaneFromPosition((IfcPlacement)locPl.RelativePlacement);
 
-            Align3D align = new Align3D(Plane.XY, pln);
+                Align3D align = new Align3D(Plane.XY, pln);
 
-            if (ilp.PlacementRelTo == null)
-                return align;
-            else
-                return  getPlacementTransformtion((IfcLocalPlacement)ilp.PlacementRelTo) * align;
+                if (locPl.PlacementRelTo == null)
+                    return align;
+                else
+                    return getPlacementTransformtion(locPl.PlacementRelTo) * align;
+            }
+            else if(obPL is IfcGridPlacement)
+            {
+                throw new Exception("IfcGridPlacement");
+            }
+            return null;
         }
 
-        public static Plane getPlaneFromPosition(IfcAxis2Placement3D pos)
+        public static Plane getPlaneFromPosition(IfcPlacement pos)
         {
             Point3D org = getPoint3DFromIfcCartesianPoint(pos.Location);
 
-            Vector3D xAxis;
+            Vector3D xAxis= null, yAxis = null, zAxis = null;
 
-            if (pos.RefDirection != null)
-                xAxis = new Vector3D(pos.RefDirection.DirectionRatioX, pos.RefDirection.DirectionRatioY, pos.RefDirection.DirectionRatioZ);
-            else
-                xAxis = new Vector3D(1, 0, 0);
+            if (pos is IfcAxis1Placement)
+            {
+                throw new Exception("IfcAxis1Placement");
+            }
+            else if (pos is IfcAxis2Placement2D)
+            {
+                IfcAxis2Placement2D pos2D = (IfcAxis2Placement2D)pos;
 
-            Vector3D zAxis;
+                if (pos2D.RefDirection != null)
+                    xAxis = new Vector3D(pos2D.RefDirection.DirectionRatioX, pos2D.RefDirection.DirectionRatioY, pos2D.RefDirection.DirectionRatioZ);
+                else
+                    xAxis = new Vector3D(1, 0, 0);
 
-            if (pos.Axis != null)
-                zAxis = new Vector3D(pos.Axis.DirectionRatioX, pos.Axis.DirectionRatioY, pos.Axis.DirectionRatioZ);
-            else
-                zAxis = new Vector3D(0, 0, 1);
+                yAxis = Vector3D.Cross(Plane.XY.AxisZ, xAxis);
+            }
+            else if (pos is IfcAxis2Placement3D)
+            {
+                IfcAxis2Placement3D pos3D = (IfcAxis2Placement3D)pos;
 
-            if (xAxis.IsZero)    //rivedere
-                xAxis = new Vector3D(1, 0, 0);
+                if (pos3D.RefDirection != null)
+                    xAxis = new Vector3D(pos3D.RefDirection.DirectionRatioX, pos3D.RefDirection.DirectionRatioY, pos3D.RefDirection.DirectionRatioZ);
+                else
+                    xAxis = new Vector3D(1, 0, 0);
 
-            return new Plane(org, xAxis, Vector3D.Cross(zAxis, xAxis));
+                if (pos3D.Axis != null)
+                    zAxis = new Vector3D(pos3D.Axis.DirectionRatioX, pos3D.Axis.DirectionRatioY, pos3D.Axis.DirectionRatioZ);
+                else
+                    zAxis = new Vector3D(0, 0, 1);
+
+                if (xAxis.IsZero)    //rivedere
+                    xAxis = new Vector3D(1, 0, 0);
+
+                yAxis = Vector3D.Cross(zAxis, xAxis);
+            }
+            return new Plane(org, xAxis, yAxis);
         }
 
         public static Entity getEntityFromIfcProductRepresentation(IfcProductRepresentation prodRep, ViewportLayout viewportLayout1, Transformation entityTrs = null)
@@ -70,7 +97,14 @@ namespace WindowsApplication1
             {
                 if (iRep.RepresentationIdentifier.Equals("Body"))
                 {
-                    Entity entity = getEntityFromIfcRepresentationItem(iRep.Items[0], viewportLayout1, entityTrs);      // correggere se item.Count > 1
+                    //foreach (IfcRepresentationItem item in iRep.Items)
+                    //{
+                    //    Entity entity = getEntityFromIfcRepresentationItem(item, viewportLayout1, entityTrs);      // correggere se item.Count > 1
+
+                    //    if (entity != null)
+                    //        entityList.Add(entity);
+                    //}
+                    Entity entity = getEntityFromIfcRepresentation(iRep, viewportLayout1, entityTrs);
 
                     if (entity != null)
                         entityList.Add(entity);
@@ -92,9 +126,39 @@ namespace WindowsApplication1
                     b.Entities.Add(e);
                 }
 
-                viewportLayout1.Blocks.Add(prodRep.Index.ToString(), b);
+                viewportLayout1.Blocks.Add("ProductRepresentatio " + prodRep.Index.ToString(), b);
 
-                return new BlockReference(prodRep.Index.ToString());
+                return new BlockReference("ProductRepresentatio " + prodRep.Index.ToString());
+            }
+            else if (entityList.Count == 0)
+                return null;
+
+            return entityList[0];
+        }
+
+        public static Entity getEntityFromIfcRepresentation(IfcRepresentation rep, ViewportLayout viewportLayout1, Transformation entityTrs = null)
+        {
+            List<Entity> entityList = new List<Entity>();
+
+            foreach (IfcRepresentationItem item in rep.Items)
+            {
+                Entity entity = getEntityFromIfcRepresentationItem(item, viewportLayout1, entityTrs);
+
+                if (entity != null)
+                    entityList.Add(entity);
+            }
+            if (entityList.Count > 1)
+            {
+                Block b = new Block();
+
+                foreach (Entity e in entityList)
+                {
+                    b.Entities.Add(e);
+                }
+
+                viewportLayout1.Blocks.Add("Representation " + rep.Index.ToString(), b);
+
+                return new BlockReference("Representation " + rep.Index.ToString());
             }
             else if (entityList.Count == 0)
                 return null;
@@ -114,7 +178,7 @@ namespace WindowsApplication1
             }
             else if(reprItem is IfcCurve)
             {
-                result = getCompositeCurveFromIfcCurve((IfcCurve)reprItem);
+                result = getCompositeCurveFromIfcCurve((IfcCurve)reprItem, viewportLayout1, entityTrs);
             }
             else if (reprItem is IfcExtrudedAreaSolid)
             {
@@ -133,14 +197,12 @@ namespace WindowsApplication1
                     //extDir.TransformBy(trs * align2);
                     extDir.TransformBy(align);
 
-                    devDept.Eyeshot.Entities.Region region = getRegionFromIfcProfileDef(extrAreaSolid.SweptArea);
+                    devDept.Eyeshot.Entities.Region region = getRegionFromIfcProfileDef(extrAreaSolid.SweptArea, viewportLayout1);
 
                     if (region != null)
                     {
                         //region.TransformBy(trs * align2);
                         region.TransformBy(align);
-
-                        viewportLayout1.Entities.Add((Entity)region.Clone(), 1);
 
                         result = region.ExtrudeAsMesh(extDir * extrAreaSolid.Depth, 0.1, Mesh.natureType.Plain); // 0.1 tolerance must be computed according to object size
 
@@ -353,17 +415,17 @@ namespace WindowsApplication1
             {
                 IfcMappedItem mapItem = (IfcMappedItem)reprItem;
 
-                if (!viewportLayout1.Blocks.ContainsKey(mapItem.MappingSource.Index.ToString()))
+                if (!viewportLayout1.Blocks.ContainsKey("MappingSource " + mapItem.MappingSource.Index.ToString()))
                 {
                     IfcRepresentationMap reprMapSource = mapItem.MappingSource;
 
-                    Entity mapSource = getEntityFromIfcRepresentationItem(reprMapSource.MappedRepresentation.Items[0], viewportLayout1, entityTrs);
+                    Entity mapSource = getEntityFromIfcRepresentation(reprMapSource.MappedRepresentation, viewportLayout1, entityTrs);
 
                     Block b = new Block();
 
                     if (mapSource != null)
                     {
-                        Plane pln = getPlaneFromPosition((IfcAxis2Placement3D)reprMapSource.MappingOrigin);
+                        Plane pln = getPlaneFromPosition((IfcPlacement)reprMapSource.MappingOrigin);
 
                         Align3D algn = new Align3D(Plane.XY, pln);
 
@@ -372,7 +434,7 @@ namespace WindowsApplication1
                         b.Entities.Add(mapSource);
                     }
 
-                    viewportLayout1.Blocks.Add(mapItem.MappingSource.Index.ToString(), b);
+                    viewportLayout1.Blocks.Add("MappingSource " + mapItem.MappingSource.Index.ToString(), b);
                 }
 
                 IfcCartesianTransformationOperator3D iTrs = (IfcCartesianTransformationOperator3D)mapItem.MappingTarget;
@@ -413,7 +475,7 @@ namespace WindowsApplication1
 
                 Transformation targetTrs = new Transformation(org, vectorX, vectorY, vectorZ);
 
-                result = new BlockReference(targetTrs, mapItem.MappingSource.Index.ToString());
+                result = new BlockReference(targetTrs, "MappingSource " + mapItem.MappingSource.Index.ToString());
 
             }
             else if (reprItem is IfcShellBasedSurfaceModel)
@@ -537,19 +599,32 @@ namespace WindowsApplication1
             return result;
         }
 
-        private static CompositeCurve getCompositeCurveFromIfcCurve( IfcCurve ifcCurve)
+        private static CompositeCurve getCompositeCurveFromIfcCurve( IfcCurve ifcCurve, ViewportLayout viewportLayout1 = null, Transformation entityTrs = null)
         {
             CompositeCurve result = null;
 
-            if (ifcCurve is IfcCircle)
+            if (ifcCurve is IfcConic)
             {
-                IfcCircle c = (IfcCircle)ifcCurve;
+                IfcConic ifcConic = (IfcConic)ifcCurve;
 
-                IfcAxis2Placement2D center = (IfcAxis2Placement2D)c.Position;                
+                Plane pln = getPlaneFromPosition((IfcPlacement)ifcConic.Position);
 
-                Circle circle = new Circle(getPoint3DFromIfcCartesianPoint(center.Location), c.Radius);
+                if (ifcConic is IfcCircle)
+                {
+                    IfcCircle ifcCircle = (IfcCircle)ifcCurve;
 
-                result = new CompositeCurve(circle);
+                    Circle circle = new Circle(pln, ifcCircle.Radius);
+
+                    result = new CompositeCurve(circle);
+                }
+                else
+                {
+                    IfcEllipse ifcEllipse = (IfcEllipse)ifcConic;
+
+                    Ellipse ellipse = new Ellipse(pln, pln.Origin, ifcEllipse.SemiAxis1, ifcEllipse.SemiAxis2);
+
+                    result = new CompositeCurve(ellipse);
+                }
             }
             else if (ifcCurve is IfcPolyline)
             {
@@ -573,7 +648,7 @@ namespace WindowsApplication1
 
                 foreach( IfcCompositeCurveSegment ccSegment in cc.Segments)
                 {
-                    CompositeCurve segment = getCompositeCurveFromIfcCurve(ccSegment.ParentCurve);
+                    CompositeCurve segment = getCompositeCurveFromIfcCurve(ccSegment.ParentCurve, viewportLayout1, entityTrs);
 
                     if (segment != null)
                     {
@@ -590,33 +665,43 @@ namespace WindowsApplication1
             {
                 IfcTrimmedCurve tc = (IfcTrimmedCurve)ifcCurve;
 
-                CompositeCurve cc = getCompositeCurveFromIfcCurve(tc.BasisCurve);
+                CompositeCurve cc = getCompositeCurveFromIfcCurve(tc.BasisCurve, viewportLayout1, entityTrs);
 
                 if (cc != null)
                 {
-                    //if (cc.CurveList[0] is Circle)
-                    //{
-                    //    Circle circle = (Circle)cc.CurveList[0];
-                    //    if (tc.MasterRepresentation == IfcTrimmingPreference.CARTESIAN)
-                    //    {
-                    //        ICurve curve;
+                    ICurve trimCurve = null;
 
-                    //        IfcTrimmingSelect ip1 = tc.Trim1;
-
-
-
-                    //        Point3D[] p1 = getPoint3DFromIfcCartesianPoint(tc.Trim1.IfcCartesianPoint);
-
-                    //        //circle.SubCurve(tc.Trim1.IfcCartesianPoint, tc.Trim2.IfcCartesianPoint, curve);
-                    //    }
-
-                    //    result = cc;
-                    //}
-                    //else
+                    if(tc.MasterRepresentation == IfcTrimmingPreference.PARAMETER)
                     {
-                        if (!debug.Contains("IfcTrimmedCurve.BasisCurve not supported: " + tc.BasisCurve.KeyWord))
-                            debug += "IfcTrimmedCurve.BasisCurve not supported: " + tc.BasisCurve.KeyWord + "\n";
+                        double startParam = tc.Trim1.IfcParameterValue * Math.PI / 180;
+                        double endParam = tc.Trim2.IfcParameterValue * Math.PI / 180;
+
+                        if (tc.SenseAgreement)
+                        {
+                            if (startParam > endParam)
+                                startParam = startParam - Math.PI * 2;
+
+                            cc.SubCurve(startParam, endParam, out trimCurve);
+                        }
+                        else
+                        {
+                            if (endParam > startParam)
+                                endParam = endParam - Math.PI * 2;
+
+                            cc.SubCurve(endParam, startParam, out trimCurve);
+
+                            trimCurve.Reverse();
+                        }
                     }
+                    else if(tc.MasterRepresentation == IfcTrimmingPreference.CARTESIAN)
+                    {
+                        debug += "IfcTrimmed cartesianPoint not supported: \n";
+                    }
+                    else
+                    {
+                        debug += "IfcTrimmed not supported: \n";
+                    }
+                    result = new CompositeCurve(trimCurve);
                 }
             }
             else
@@ -667,28 +752,34 @@ namespace WindowsApplication1
                 
                 Align3D align = new Align3D(Plane.XY, boundaryPlane);
 
-                IfcPolyline p = (IfcPolyline)polB.PolygonalBoundary;
+                CompositeCurve boundary = getCompositeCurveFromIfcCurve(polB.PolygonalBoundary);
 
-                Point3D[] points = new Point3D[p.Points.Count];
+                //IfcPolyline p = (IfcPolyline)polB.PolygonalBoundary;
 
-                for (int i = 0; i < p.Points.Count; i++)
+                //Point3D[] points = new Point3D[p.Points.Count];
+
+                //for (int i = 0; i < p.Points.Count; i++)
+                //{
+                //    points[i] = new Point3D(p.Points[i].Coordinates.Item1, p.Points[i].Coordinates.Item2, p.Points[i].Coordinates.Item3);
+                //}
+                //LinearPath lp = new LinearPath(points);
+
+                //devDept.Eyeshot.Entities.Region region = new devDept.Eyeshot.Entities.Region(lp);
+                if (boundary != null)
                 {
-                    points[i] = new Point3D(p.Points[i].Coordinates.Item1, p.Points[i].Coordinates.Item2, p.Points[i].Coordinates.Item3);
+                    devDept.Eyeshot.Entities.Region region = new devDept.Eyeshot.Entities.Region(boundary);
+
+                    region.TransformBy(align);
+
+                    Vector3D extDir = boundaryPlane.AxisZ;
+
+                    op2 = region.ExtrudeAsSolid(extDir * 20, 0.1); // 0.1 tolerance must be computed according to object size
+
+                    if (!polB.AgreementFlag)
+                        cutPln.Flip();
+
+                    op2.CutBy(cutPln);
                 }
-                LinearPath lp = new LinearPath(points);
-
-                devDept.Eyeshot.Entities.Region region = new devDept.Eyeshot.Entities.Region(lp);
-
-                region.TransformBy(align);
-
-                Vector3D extDir = boundaryPlane.AxisZ;
-
-                op2 = region.ExtrudeAsSolid(extDir * 20, 0.1); // 0.1 tolerance must be computed according to object size
-
-                if (!polB.AgreementFlag)
-                    cutPln.Flip();
-
-                op2.CutBy(cutPln);                
             }
             else if (bcr.SecondOperand is IfcHalfSpaceSolid)
             {
@@ -701,8 +792,10 @@ namespace WindowsApplication1
                 if (!hs.AgreementFlag)
                     pln.Flip();
 
-                op1.CutBy(pln);
-
+                if (op1 != null)
+                {
+                    op1.CutBy(pln);
+                }
                 return op1;
             }
 
@@ -752,7 +845,7 @@ namespace WindowsApplication1
             }
         }
 
-        public static devDept.Eyeshot.Entities.Region getRegionFromIfcProfileDef(IfcProfileDef ipd)
+        public static devDept.Eyeshot.Entities.Region getRegionFromIfcProfileDef(IfcProfileDef ipd, ViewportLayout viewportLayout1)
         {
             devDept.Eyeshot.Entities.Region region = null;
 
@@ -798,8 +891,15 @@ namespace WindowsApplication1
                 CompositeCurve cc = getCompositeCurveFromIfcCurve(arProfDef.OuterCurve);
 
                 if (cc != null)
+                {
+                    foreach(Entity xx in cc.CurveList)
+                        viewportLayout1.Entities.Add((Entity)xx.Clone(), 1);
 
+                    viewportLayout1.Entities.Add((Entity)cc.Clone(), 2);
+                    
                     region = new devDept.Eyeshot.Entities.Region(cc);
+
+                }
             }
             else
             {
@@ -809,9 +909,16 @@ namespace WindowsApplication1
             if (ipd is IfcParameterizedProfileDef)
             {
                 IfcParameterizedProfileDef parProfDef = (IfcParameterizedProfileDef)ipd;
+
                 if (parProfDef.Position != null && region != null)
                 {
-                    region.Translate(parProfDef.Position.Location.Coordinates.Item1, parProfDef.Position.Location.Coordinates.Item2, parProfDef.Position.Location.Coordinates.Item3);
+                    Plane plane = getPlaneFromPosition(parProfDef.Position);
+
+                    Align3D algn = new Align3D(Plane.XY, plane);
+
+                    region.TransformBy(algn);
+
+                    //region.Translate(parProfDef.Position.Location.Coordinates.Item1, parProfDef.Position.Location.Coordinates.Item2, parProfDef.Position.Location.Coordinates.Item3);
                 }
             }
             return region;
