@@ -29,7 +29,7 @@ namespace WindowsApplication1
         private void InitializeComponent()
         {
             devDept.Graphics.BackgroundSettings backgroundSettings1 = new devDept.Graphics.BackgroundSettings(devDept.Graphics.backgroundStyleType.Solid, System.Drawing.Color.DeepSkyBlue, System.Drawing.Color.DodgerBlue, System.Drawing.Color.Snow, 0.75D, null, devDept.Graphics.colorThemeType.Auto, 0.3D);
-            devDept.Eyeshot.Camera camera1 = new devDept.Eyeshot.Camera(new devDept.Geometry.Point3D(0D, 0D, 50D), 600D, new devDept.Geometry.Quaternion(0.086824088833465166D, 0.15038373318043533D, 0.492403876506104D, 0.85286853195244339D), devDept.Graphics.projectionType.Perspective, 50D, 831460778.48358572D, false, 0.001D);
+            devDept.Eyeshot.Camera camera1 = new devDept.Eyeshot.Camera(new devDept.Geometry.Point3D(0D, 0D, 50D), 600D, new devDept.Geometry.Quaternion(0.086824088833465166D, 0.15038373318043533D, 0.492403876506104D, 0.85286853195244339D), devDept.Graphics.projectionType.Perspective, 50D, 887640558.49041975D, false, 0.001D);
             devDept.Eyeshot.HomeToolBarButton homeToolBarButton1 = new devDept.Eyeshot.HomeToolBarButton("Home", devDept.Eyeshot.ToolBarButton.styleType.PushButton, true, true);
             devDept.Eyeshot.MagnifyingGlassToolBarButton magnifyingGlassToolBarButton1 = new devDept.Eyeshot.MagnifyingGlassToolBarButton("Magnifying Glass", devDept.Eyeshot.ToolBarButton.styleType.ToggleButton, true, true);
             devDept.Eyeshot.ZoomWindowToolBarButton zoomWindowToolBarButton1 = new devDept.Eyeshot.ZoomWindowToolBarButton("Zoom Window", devDept.Eyeshot.ToolBarButton.styleType.ToggleButton, true, true);
@@ -51,7 +51,7 @@ namespace WindowsApplication1
             devDept.Eyeshot.PanSettings panSettings1 = new devDept.Eyeshot.PanSettings(new devDept.Eyeshot.MouseButton(devDept.Eyeshot.mouseButtonsZPR.Middle, devDept.Eyeshot.modifierKeys.Ctrl), 25, true);
             devDept.Eyeshot.NavigationSettings navigationSettings1 = new devDept.Eyeshot.NavigationSettings(devDept.Eyeshot.Camera.navigationType.Examine, new devDept.Eyeshot.MouseButton(devDept.Eyeshot.mouseButtonsZPR.Left, devDept.Eyeshot.modifierKeys.None), new devDept.Geometry.Point3D(-1000D, -1000D, -1000D), new devDept.Geometry.Point3D(1000D, 1000D, 1000D), 8D, 50D, 50D);
             devDept.Eyeshot.Viewport.SavedViewsManager savedViewsManager1 = new devDept.Eyeshot.Viewport.SavedViewsManager(8);
-            devDept.Eyeshot.Viewport viewport1 = new devDept.Eyeshot.Viewport(new System.Drawing.Point(0, 0), new System.Drawing.Size(721, 370), backgroundSettings1, camera1, new devDept.Eyeshot.ToolBar[] {
+            devDept.Eyeshot.Viewport viewport1 = new devDept.Eyeshot.Viewport(new System.Drawing.Point(0, 0), new System.Drawing.Size(510, 395), backgroundSettings1, camera1, new devDept.Eyeshot.ToolBar[] {
             toolBar1}, devDept.Eyeshot.displayType.Rendered, true, false, false, false, new devDept.Eyeshot.Grid[] {
             grid1}, false, rotateSettings1, zoomSettings1, panSettings1, navigationSettings1, savedViewsManager1, devDept.Eyeshot.viewType.Trimetric);
             devDept.Eyeshot.CoordinateSystemIcon coordinateSystemIcon1 = new devDept.Eyeshot.CoordinateSystemIcon(System.Drawing.Color.Black, System.Drawing.Color.FromArgb(((int)(((byte)(80)))), ((int)(((byte)(80)))), ((int)(((byte)(80))))), System.Drawing.Color.FromArgb(((int)(((byte)(80)))), ((int)(((byte)(80)))), ((int)(((byte)(80))))), System.Drawing.Color.OrangeRed, "Origin", "X", "Y", "Z", true, devDept.Eyeshot.coordinateSystemPositionType.BottomLeft, 37, false);
@@ -79,6 +79,7 @@ namespace WindowsApplication1
             this.printDialog1 = new System.Windows.Forms.PrintDialog();
             this.viewportLayout1 = new devDept.Eyeshot.ViewportLayout();
             this.modelTree = new System.Windows.Forms.TreeView();
+            this._dumpButton = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.viewportLayout1)).BeginInit();
             this.SuspendLayout();
             // 
@@ -95,7 +96,7 @@ namespace WindowsApplication1
             this.viewportLayout1.Location = new System.Drawing.Point(234, 12);
             this.viewportLayout1.MinimumSize = new System.Drawing.Size(8, 8);
             this.viewportLayout1.Name = "viewportLayout1";
-            this.viewportLayout1.Size = new System.Drawing.Size(721, 370);
+            this.viewportLayout1.Size = new System.Drawing.Size(510, 395);
             this.viewportLayout1.TabIndex = 0;
             coordinateSystemIcon1.LabelFont = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             viewport1.CoordinateSystemIcon = coordinateSystemIcon1;
@@ -109,7 +110,6 @@ namespace WindowsApplication1
             viewCubeIcon1.InitialRotation = new devDept.Geometry.Quaternion(0D, 0D, 0D, 1D);
             viewport1.ViewCubeIcon = viewCubeIcon1;
             this.viewportLayout1.Viewports.Add(viewport1);
-            this.viewportLayout1.WriteDepthForTransparents = false;
             // 
             // modelTree
             // 
@@ -117,15 +117,27 @@ namespace WindowsApplication1
             | System.Windows.Forms.AnchorStyles.Left)));
             this.modelTree.Location = new System.Drawing.Point(12, 12);
             this.modelTree.Name = "modelTree";
-            this.modelTree.Size = new System.Drawing.Size(210, 366);
+            this.modelTree.Size = new System.Drawing.Size(210, 395);
             this.modelTree.TabIndex = 1;
             this.modelTree.AfterSelect += new System.Windows.Forms.TreeViewEventHandler(this.TreeView1_AfterSelect);
+            // 
+            // _dumpButton
+            // 
+            this._dumpButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this._dumpButton.Location = new System.Drawing.Point(754, 12);
+            this._dumpButton.Name = "_dumpButton";
+            this._dumpButton.Size = new System.Drawing.Size(75, 23);
+            this._dumpButton.TabIndex = 2;
+            this._dumpButton.Text = "Dump";
+            this._dumpButton.UseVisualStyleBackColor = true;
+            this._dumpButton.Click += new System.EventHandler(this._dumpButton_Click);
             // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(805, 395);
+            this.ClientSize = new System.Drawing.Size(841, 424);
+            this.Controls.Add(this._dumpButton);
             this.Controls.Add(this.modelTree);
             this.Controls.Add(this.viewportLayout1);
             this.Name = "Form1";
@@ -140,5 +152,6 @@ namespace WindowsApplication1
         private System.Windows.Forms.PrintDialog printDialog1;
         private devDept.Eyeshot.ViewportLayout viewportLayout1;
         private System.Windows.Forms.TreeView modelTree;
+        private System.Windows.Forms.Button _dumpButton;
     }
 }

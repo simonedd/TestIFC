@@ -89,9 +89,54 @@ namespace WindowsApplication1
             return new Plane(org, xAxis, yAxis);
         }
 
+        public static Entity getEntityFromIfcElement(IfcElement ifcElement, ViewportLayout viewportLayout1)
+        {
+            Entity eyeElement = null;
+
+            Transformation elementTrs = new Transformation(1);
+
+            if (ifcElement.Placement != null)
+            {
+                elementTrs = Conversion.getPlacementTransformtion(ifcElement.Placement);
+            }
+            if (ifcElement.Representation != null)
+            {
+                eyeElement = Conversion.getEntityFromIfcProductRepresentation(ifcElement.Representation, viewportLayout1, elementTrs);
+            }
+            if (eyeElement != null)
+            {
+                eyeElement.TransformBy(elementTrs);
+            }
+            if (ifcElement.IsDecomposedBy.Count > 0)
+            {
+                Block b = new Block();
+
+                foreach (IfcRelAggregates relAg in ifcElement.IsDecomposedBy)
+                {
+                    foreach (IfcElement el in relAg.RelatedObjects)
+                    {
+                        Entity entity = getEntityFromIfcElement(el, viewportLayout1);
+
+                        if (entity != null)
+                        {
+                            b.Entities.Add(entity);
+                        }
+                    }
+                }
+                if (eyeElement != null)
+                    b.Entities.Add(eyeElement);
+
+                viewportLayout1.Blocks.Add(ifcElement.GlobalId, b);
+
+                eyeElement = new BlockReference(ifcElement.GlobalId);
+            }
+
+            return eyeElement;
+        }
+
         public static Entity getEntityFromIfcProductRepresentation(IfcProductRepresentation prodRep, ViewportLayout viewportLayout1, Transformation entityTrs = null)
         {
-            List<Entity> entityList = new List<Entity>();
+            List<Entity> entityList = new List<Entity>();       //se uso solo body non mi serve lista ??
 
             foreach (IfcRepresentation iRep in prodRep.Representations)
             {
@@ -178,7 +223,7 @@ namespace WindowsApplication1
             }
             else if(reprItem is IfcCurve)
             {
-                result = getCompositeCurveFromIfcCurve((IfcCurve)reprItem, viewportLayout1, entityTrs);
+                result = (Entity)getICurveFromIfcCurve((IfcCurve)reprItem, viewportLayout1, entityTrs);
             }
             else if (reprItem is IfcExtrudedAreaSolid)
             {
@@ -599,9 +644,9 @@ namespace WindowsApplication1
             return result;
         }
 
-        private static CompositeCurve getCompositeCurveFromIfcCurve( IfcCurve ifcCurve, ViewportLayout viewportLayout1 = null, Transformation entityTrs = null)
+        private static ICurve getICurveFromIfcCurve( IfcCurve ifcCurve, ViewportLayout viewportLayout1 = null, Transformation entityTrs = null)
         {
-            CompositeCurve result = null;
+            ICurve result = null;
 
             if (ifcCurve is IfcConic)
             {
@@ -648,11 +693,11 @@ namespace WindowsApplication1
 
                 foreach( IfcCompositeCurveSegment ccSegment in cc.Segments)
                 {
-                    CompositeCurve segment = getCompositeCurveFromIfcCurve(ccSegment.ParentCurve, viewportLayout1, entityTrs);
+                    ICurve segment = getICurveFromIfcCurve(ccSegment.ParentCurve, viewportLayout1, entityTrs);
 
                     if (segment != null)
                     {
-                        result.CurveList.Add(segment);
+                        ((CompositeCurve)result).CurveList.Add(segment);
                     }
                     else
                     {
@@ -665,9 +710,9 @@ namespace WindowsApplication1
             {
                 IfcTrimmedCurve tc = (IfcTrimmedCurve)ifcCurve;
 
-                CompositeCurve cc = getCompositeCurveFromIfcCurve(tc.BasisCurve, viewportLayout1, entityTrs);
+                ICurve basisCurve = getICurveFromIfcCurve(tc.BasisCurve, viewportLayout1, entityTrs);
 
-                if (cc != null)
+                if (basisCurve != null)
                 {
                     ICurve trimCurve = null;
 
@@ -681,14 +726,14 @@ namespace WindowsApplication1
                             if (startParam > endParam)
                                 startParam = startParam - Math.PI * 2;
 
-                            cc.SubCurve(startParam, endParam, out trimCurve);
+                            basisCurve.SubCurve(startParam, endParam, out trimCurve);
                         }
                         else
                         {
                             if (endParam > startParam)
                                 endParam = endParam - Math.PI * 2;
 
-                            cc.SubCurve(endParam, startParam, out trimCurve);
+                            basisCurve.SubCurve(endParam, startParam, out trimCurve);
 
                             trimCurve.Reverse();
                         }
@@ -752,7 +797,7 @@ namespace WindowsApplication1
                 
                 Align3D align = new Align3D(Plane.XY, boundaryPlane);
 
-                CompositeCurve boundary = getCompositeCurveFromIfcCurve(polB.PolygonalBoundary);
+                ICurve boundary = getICurveFromIfcCurve(polB.PolygonalBoundary);
 
                 //IfcPolyline p = (IfcPolyline)polB.PolygonalBoundary;
 
@@ -888,14 +933,14 @@ namespace WindowsApplication1
             {
                 IfcArbitraryClosedProfileDef arProfDef = (IfcArbitraryClosedProfileDef)ipd;
 
-                CompositeCurve cc = getCompositeCurveFromIfcCurve(arProfDef.OuterCurve);
+                ICurve cc = getICurveFromIfcCurve(arProfDef.OuterCurve);
 
                 if (cc != null)
                 {
-                    foreach(Entity xx in cc.CurveList)
-                        viewportLayout1.Entities.Add((Entity)xx.Clone(), 1);
+                    //foreach(Entity xx in cc.CurveList)
+                    //    viewportLayout1.Entities.Add((Entity)xx.Clone(), 1);
 
-                    viewportLayout1.Entities.Add((Entity)cc.Clone(), 2);
+                    //viewportLayout1.Entities.Add((Entity)cc.Clone(), 2);
                     
                     region = new devDept.Eyeshot.Entities.Region(cc);
 

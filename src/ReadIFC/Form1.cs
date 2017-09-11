@@ -72,8 +72,8 @@ namespace WindowsApplication1
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\NER-38d.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\NHS Office.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\Office_A_20110811.ifc");
-            DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\porur duplex.ifc");
-            //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\c_rvt8_Townhouse.ifc");
+            //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\porur duplex.ifc");
+            DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\c_rvt8_Townhouse.ifc");
 
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Samples\\01 Fire Protection.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Samples\\ArchiCAD IFC Buildsoft.ifc");
@@ -89,136 +89,53 @@ namespace WindowsApplication1
             //ci sono piu elementi uguali ( stesso mark )
             foreach (IfcBuildingElement ifcElement in elements)
             {    
-                if (ifcElement.GlobalId.StartsWith("0EUjL1KGjFNeBk1a2NZWoy") &&/**/ ifcElement.Decomposes == null)
+                if (/*ifcElement.GlobalId.StartsWith("27EZvfUZr0z8zqxma$9GuI") &&/**/ ifcElement.Decomposes == null)
                 {
-                    Entity eyeElement = null;
-
-                    if (ifcElement.Placement != null)
-                    {
-                        elementTrs = Conversion.getPlacementTransformtion(ifcElement.Placement);
-                    }
-                    IfcProductRepresentation prodRep = (IfcProductRepresentation)ifcElement.Representation;
-
-                    if(prodRep != null)
-                        eyeElement = Conversion.getEntityFromIfcProductRepresentation(prodRep, viewportLayout1, elementTrs);
+                    Entity eyeElement = Conversion.getEntityFromIfcElement(ifcElement, viewportLayout1);
 
                     if (eyeElement != null)
-                        eyeElement.TransformBy(elementTrs);
-
-                    if (ifcElement.IsDecomposedBy.Count > 0)
-                    {
-                        Block b = new Block();
-
-                        foreach (IfcRelAggregates relAg in ifcElement.IsDecomposedBy)        //gestire se count > 1
-                        {                            
-                            foreach (IfcElement el in relAg.RelatedObjects)
-                            {
-                                Entity entity = Conversion.getEntityFromIfcProductRepresentation(el.Representation, viewportLayout1, elementTrs);  //gestire se entity is decomposet ( funz ricorsiva)
-
-                                Transformation trs = Conversion.getPlacementTransformtion(el.Placement);
-
-                                if (entity != null)
-                                {
-                                    entity.TransformBy(trs);
-
-                                    b.Entities.Add(entity);
-                                }
-                            }
-                        }
-                        if (eyeElement != null)
-                            b.Entities.Add(eyeElement);
-
-                        viewportLayout1.Blocks.Add(ifcElement.GlobalId, b);
-
-                        eyeElement = new BlockReference(ifcElement.GlobalId);
-                    }
-
-                    if(eyeElement != null)
                     {
                         if (ifcElement.HasOpenings.Count > 0 )
                         {
                             eyeElement = this.createOpenings(eyeElement, ifcElement);
                         }
 
-                        eyeElement.EntityData = ifcElement.KeyWord + "|" + ifcElement.GlobalId;
-    
-                        viewportLayout1.Entities.Add(eyeElement, 0);
+                        if (eyeElement is Mesh)
+                        {
+                            Mesh m = (Mesh)eyeElement;
+                            IfcMesh ifcMesh = new IfcMesh(m.Vertices, m.Triangles);
+                            ifcMesh.loadProperty(ifcElement);
+                            ifcMesh.EntityData = ifcElement.KeyWord + "|" + ifcElement.GlobalId;
+
+                            viewportLayout1.Entities.Add(ifcMesh, 0);
+                        }
+                        else
+                        {
+                            eyeElement.EntityData = ifcElement.KeyWord + "|" + ifcElement.GlobalId;
+
+                            viewportLayout1.Entities.Add(eyeElement, 0);
+                        }
                     }
                 }
             }
 
-
-            //da correggere come buildingElement
-            foreach (IfcDistributionElement element in distEle)
+            foreach (IfcDistributionElement ifcElement in distEle)
             {
-
-                if (/*element.GlobalId.StartsWith("ciao") &&/*handleElements.Contains(element.KeyWord) && */element.Placement != null && element.Representation != null)
+                if (/*ifcElement.GlobalId.StartsWith("0EUjL1KGjFNeBk1a2NZWoy") &&/**/ ifcElement.Decomposes == null)
                 {
-                    elementTrs = Conversion.getPlacementTransformtion(element.Placement);
+                    Entity eyeElement = Conversion.getEntityFromIfcElement(ifcElement, viewportLayout1);
 
-                    IfcProductRepresentation prodRep = (IfcProductRepresentation)element.Representation;
-
-                    Entity entity = Conversion.getEntityFromIfcProductRepresentation(prodRep, viewportLayout1, elementTrs);
-
-                    if (entity != null)
+                    if (eyeElement != null)
                     {
-                        entity.TransformBy(elementTrs);
-
-                        if (element.HasOpenings.Count > 0 && (entity is Solid || entity is Mesh))    //possibile opening su entita che non e' solid o mesh ??
+                        if (ifcElement.HasOpenings.Count > 0)
                         {
-                            Solid entitySolid;
-
-                            if (entity is Mesh)
-                                entitySolid = ((Mesh)entity).ConvertToSolid();
-                            else
-                                entitySolid = (Solid)entity;
-
-                            foreach (IfcRelVoidsElement relVE in element.HasOpenings)
-                            {
-                                Entity openingEntity = Conversion.getEntityFromIfcProductRepresentation(relVE.RelatedOpeningElement.Representation, viewportLayout1);
-
-                                Transformation opTrs = Conversion.getPlacementTransformtion(relVE.RelatedOpeningElement.Placement);
-
-                                openingEntity.TransformBy(opTrs);
-
-                                Solid openingSolid;
-
-                                if (openingEntity is Mesh)
-                                    openingSolid = ((Mesh)openingEntity).ConvertToSolid();
-                                else
-                                    openingSolid = (Solid)openingEntity;
-
-                                Solid[] result;
-
-                                result = Solid.Difference(entitySolid, openingSolid, 0.00001);
-
-                                if (result != null)
-                                {
-                                    entitySolid = result[0];
-                                }
-                                else
-                                {
-                                    WriteSTL ws = new WriteSTL(new Entity[] { entitySolid, openingSolid }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), @"c:\devdept\booleanError\" + count + " " + element.GlobalId + ".stl", 0.01, true);
-                                    count++;
-                                    ws.DoWork();
-                                    debug += "Error in opening boolean operation\n";
-                                }
-                            }
-                            entity = entitySolid;
+                            eyeElement = this.createOpenings(eyeElement, ifcElement);
                         }
 
-                        entity.EntityData = element.KeyWord + "|" + element.GlobalId;
+                        eyeElement.EntityData = ifcElement.KeyWord + "|" + ifcElement.GlobalId;
 
-                        //entity.TransformBy(trs);
-
-                        viewportLayout1.Entities.Add(entity, 0);
+                        viewportLayout1.Entities.Add(eyeElement, 0);
                     }
-
-                }
-                else
-                {
-                    if (!debug.Contains("IfcElement error: " + element.KeyWord))
-                        debug += "IfcElement error: " + element.KeyWord + "\n";
                 }
             }
 
@@ -551,6 +468,30 @@ namespace WindowsApplication1
         }
 
         #endregion
+
+        private void _dumpButton_Click(object sender, EventArgs e)
+        {
+            for (int i = 0; i < viewportLayout1.Entities.Count; i++)
+            {
+                if (viewportLayout1.Entities[i].Selected)
+                {
+                    //string details = "Entity ID = " + i + System.Environment.NewLine + "----------------------" + System.Environment.NewLine + viewportLayout1.Entities[i].Dump();
+
+                    string details = viewportLayout1.Entities[i].Dump();
+
+                    DetailsForm rf = new DetailsForm();
+
+                    rf.Text = "Dump";
+
+                    rf.contentTextBox.Text = details;
+                    
+                    rf.Show();
+
+                    break;
+                }
+            }
+        }
     }
+
 }
 
