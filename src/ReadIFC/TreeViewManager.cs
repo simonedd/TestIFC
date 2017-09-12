@@ -32,34 +32,41 @@ namespace WindowsApplication1
 
             for (int i = 0; i < entList.Count; i++)
             {
-                Entity ent = entList[i];
-                if (ent.EntityData != null)
+                IfcEntity ifcEntity = (IfcEntity)entList[i];
+
+                string keyWord, name;
+
+                ifcEntity.Identification.TryGetValue("KeyWord", out keyWord);
+
+                ifcEntity.Identification.TryGetValue("Name", out name);
+
+                TreeNode keyWordNode = null;
+
+                foreach (TreeNode node in nodes)
                 {
-                    string[] data = ((string)ent.EntityData).Split(new char[] { '|' }, 2);
-
-                    TreeNode keyWordNode = null;
-                    foreach (TreeNode node in nodes)
+                    if (node.Text.Equals(keyWord))
                     {
-                        if (node.Text.Equals(data[0]))
-                        {
-                            keyWordNode = node;
-                            break;
-                        }
+                        keyWordNode = node;
+                        break;
                     }
-                    if (keyWordNode == null)
-                    {
-                        keyWordNode = new TreeNode(data[0]);
-                        keyWordNode.ImageIndex = 1;
-                        keyWordNode.SelectedImageIndex = 1;
-                        nodes.Add(keyWordNode);
-                    }
-
-                    TreeNode glIdNode = new TreeNode(data[1]);
-                    glIdNode.Tag = ent;
-                    glIdNode.ImageIndex = 1;
-                    glIdNode.SelectedImageIndex = 1;
-                    keyWordNode.Nodes.Add(glIdNode);
                 }
+                if (keyWordNode == null)
+                {
+                    keyWordNode = new TreeNode(keyWord);
+                    keyWordNode.ImageIndex = 1;
+                    keyWordNode.SelectedImageIndex = 1;
+                    nodes.Add(keyWordNode);
+                } 
+                TreeNode nameNode = new TreeNode(name);
+
+                nameNode.Tag = entList[i];
+
+                nameNode.ImageIndex = 1;
+
+                nameNode.SelectedImageIndex = 1;
+
+                keyWordNode.Nodes.Add(nameNode);
+                
                 //if (ent is BlockReference)
                 //{
                 //    Block child;

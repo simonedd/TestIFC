@@ -24,6 +24,147 @@ namespace WindowsApplication1
 
         private static string debug = String.Empty;
 
+        private static Entity createOpenings(Entity eyeElement, IfcElement ifcElement, ViewportLayout viewportLayout1)
+        {
+            //viewportLayout1.Entities.Add((Entity)eyeElement.Clone(), 1);
+
+            if (eyeElement is BlockReference)
+            {
+                BlockReference brElement = (BlockReference)eyeElement;
+
+                Block blockElement;
+
+                viewportLayout1.Blocks.TryGetValue(brElement.BlockName, out blockElement);
+
+                for (int i = 0; i < blockElement.Entities.Count; i++)
+                {
+                    blockElement.Entities[i] = createOpenings(blockElement.Entities[i], ifcElement, viewportLayout1);
+                }
+                return eyeElement;
+            }
+            else if (eyeElement is Mesh)
+            {
+                Mesh m = (Mesh)eyeElement;
+
+                Mesh[] splittedMesh;
+
+                splittedMesh = m.SplitDisjoint();
+
+                if (splittedMesh.Length > 1)
+                    debug += "splittedMesh.length > 1\n";
+
+                foreach (IfcRelVoidsElement relVE in ifcElement.HasOpenings)
+                {
+                    Entity openingEntity = Conversion.getEntityFromIfcProductRepresentation(relVE.RelatedOpeningElement.Representation, viewportLayout1);
+
+                    //viewportLayout1.Entities.Add((Entity)openingEntity.Clone(), 2);
+
+                    if (openingEntity != null && (openingEntity is Mesh || openingEntity is Solid))  //gestire se openingEntity is BlockReference
+                    {
+                        Transformation opTrs = Conversion.getPlacementTransformtion(relVE.RelatedOpeningElement.Placement);
+
+                        openingEntity.TransformBy(opTrs);
+
+                        Solid openingSolid;
+
+                        if (openingEntity is Mesh)
+                            openingSolid = ((Mesh)openingEntity).ConvertToSolid();
+                        else
+                            openingSolid = (Solid)openingEntity;
+
+                        for (int i = 0; i < splittedMesh.Length; i++)
+                        {
+                            //verificare collision? bound box?
+                            Solid[] result;
+
+                            Solid entitySolid = splittedMesh[i].ConvertToSolid();
+
+                            //viewportLayout1.Entities.Add((Entity)openingSolid.Clone(), 1, Color.Green);
+
+                            if (Utility.DoOverlap(entitySolid.BoxMin, entitySolid.BoxMax, openingSolid.BoxMin, openingSolid.BoxMax))
+                            {
+                                result = Solid.Difference(entitySolid, openingSolid, 0.001);
+
+                                if (result != null)
+                                {
+                                    splittedMesh[i] = result[0].ConvertToMesh();
+
+                                    break;
+                                }
+                                else
+                                {
+                                    //WriteSTL ws = new WriteSTL(new Entity[] { entitySolid, openingSolid }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), @"c:\devdept\booleanError\" + count + " " + ifcElement.GlobalId + ".stl", 0.01, true);
+                                    //count++;
+                                    //ws.DoWork();
+                                    debug += "Error in opening boolean operation\n";
+                                }
+                            }
+                        }
+                    }
+                }
+                if (splittedMesh.Length > 1)
+                {
+                    Block b = new Block();
+
+                    foreach (Mesh mesh in splittedMesh)
+                    {
+                        b.Entities.Add(mesh);
+                    }
+                    viewportLayout1.Blocks.Add(ifcElement.GlobalId, b);
+
+                    eyeElement = new IfcBlockReference(ifcElement.GlobalId);
+                }
+                else
+                {
+                    eyeElement = splittedMesh[0];
+                }
+            }
+            else
+            {
+                Solid entitySolid = (Solid)eyeElement;
+
+                foreach (IfcRelVoidsElement relVE in ifcElement.HasOpenings)
+                {
+                    Entity openingEntity = Conversion.getEntityFromIfcProductRepresentation(relVE.RelatedOpeningElement.Representation, viewportLayout1);
+
+                    if (openingEntity != null && (openingEntity is Mesh || openingEntity is Solid))
+                    {
+                        Transformation opTrs = Conversion.getPlacementTransformtion(relVE.RelatedOpeningElement.Placement);
+
+                        openingEntity.TransformBy(opTrs);
+
+                        Solid openingSolid;
+
+                        if (openingEntity is Mesh)
+                            openingSolid = ((Mesh)openingEntity).ConvertToSolid();
+                        else
+                            openingSolid = (Solid)openingEntity;
+
+
+                        Solid[] result;
+
+                        //viewportLayout1.Entities.Add((Entity)openingSolid.Clone(), 1, Color.Green);
+
+                        result = Solid.Difference(entitySolid, openingSolid, 0.001);
+
+                        if (result != null)
+                        {
+                            entitySolid = result[0];
+                        }
+                        else
+                        {
+                            //WriteSTL ws = new WriteSTL(new Entity[] { entitySolid, openingSolid }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), @"c:\devdept\booleanError\" + count + " " + ifcElement.GlobalId + ".stl", 0.01, true);
+                            //count++;
+                            //ws.DoWork();
+                            debug += "Error in opening boolean operation\n";
+                        }
+                    }
+                }
+                eyeElement = entitySolid;
+            }
+            return eyeElement;
+        }
+
         public static Transformation getPlacementTransformtion(IfcObjectPlacement obPL)
         {
             if (obPL is IfcLocalPlacement)
@@ -128,9 +269,47 @@ namespace WindowsApplication1
 
                 viewportLayout1.Blocks.Add(ifcElement.GlobalId, b);
 
-                eyeElement = new BlockReference(ifcElement.GlobalId);
+                eyeElement = new IfcBlockReference(ifcElement.GlobalId);
             }
+            if (eyeElement != null)
+            {
+                if (ifcElement.HasOpenings.Count > 0)
+                {
+                    eyeElement = createOpenings(eyeElement, ifcElement, viewportLayout1);
+                }
+                if (eyeElement is BlockReference)
+                {
+                    UtilityIfc.loadProperties((IfcBlockReference)eyeElement, ifcElement);
+                }
+                else
+                {
+                    IfcMesh ifcMesh;
 
+                    Mesh eyeElementMesh;
+
+                    if (eyeElement is Solid)
+                    {
+                        Solid eyeElementSolid = (Solid)eyeElement;
+
+                        eyeElementMesh = eyeElementSolid.ConvertToMesh();
+                    }
+                    else
+                    {
+                        eyeElementMesh = (Mesh)eyeElement;
+                    }
+                    Color color = eyeElementMesh.Color;
+                    colorMethodType cmt = eyeElementMesh.ColorMethod;
+
+                    ifcMesh = new IfcMesh(eyeElementMesh.Vertices, eyeElementMesh.Triangles);
+
+                    ifcMesh.Color = color;
+                    ifcMesh.ColorMethod = cmt;
+
+                    UtilityIfc.loadProperties(ifcMesh, ifcElement);
+
+                    eyeElement = ifcMesh;
+                }
+            }
             return eyeElement;
         }
 
@@ -142,13 +321,6 @@ namespace WindowsApplication1
             {
                 if (iRep.RepresentationIdentifier.Equals("Body"))
                 {
-                    //foreach (IfcRepresentationItem item in iRep.Items)
-                    //{
-                    //    Entity entity = getEntityFromIfcRepresentationItem(item, viewportLayout1, entityTrs);      // correggere se item.Count > 1
-
-                    //    if (entity != null)
-                    //        entityList.Add(entity);
-                    //}
                     Entity entity = getEntityFromIfcRepresentation(iRep, viewportLayout1, entityTrs);
 
                     if (entity != null)
@@ -173,7 +345,7 @@ namespace WindowsApplication1
 
                 viewportLayout1.Blocks.Add("ProductRepresentatio " + prodRep.Index.ToString(), b);
 
-                return new BlockReference("ProductRepresentatio " + prodRep.Index.ToString());
+                return new IfcBlockReference("ProductRepresentatio " + prodRep.Index.ToString());
             }
             else if (entityList.Count == 0)
                 return null;
@@ -184,6 +356,9 @@ namespace WindowsApplication1
         public static Entity getEntityFromIfcRepresentation(IfcRepresentation rep, ViewportLayout viewportLayout1, Transformation entityTrs = null)
         {
             List<Entity> entityList = new List<Entity>();
+
+            if(viewportLayout1.Blocks.ContainsKey("Representation " + rep.Index.ToString()))
+                return new IfcBlockReference("Representation " + rep.Index.ToString());
 
             foreach (IfcRepresentationItem item in rep.Items)
             {
@@ -203,7 +378,7 @@ namespace WindowsApplication1
 
                 viewportLayout1.Blocks.Add("Representation " + rep.Index.ToString(), b);
 
-                return new BlockReference("Representation " + rep.Index.ToString());
+                return new IfcBlockReference("Representation " + rep.Index.ToString());
             }
             else if (entityList.Count == 0)
                 return null;
@@ -258,7 +433,7 @@ namespace WindowsApplication1
 
                     }
                 }
-                // BlockReference br = new BlockReference(trs, extrAreaSolid.Index.ToString());
+                // BlockReference br = new IfcBlockReference(trs, extrAreaSolid.Index.ToString());
                 // viewportLayout1.Entities.Add(br, 0, Color.Gray);
             }
             else if (reprItem is IfcFaceBasedSurfaceModel)
@@ -520,7 +695,7 @@ namespace WindowsApplication1
 
                 Transformation targetTrs = new Transformation(org, vectorX, vectorY, vectorZ);
 
-                result = new BlockReference(targetTrs, "MappingSource " + mapItem.MappingSource.Index.ToString());
+                result = new IfcBlockReference(targetTrs, "MappingSource " + mapItem.MappingSource.Index.ToString());
 
             }
             else if (reprItem is IfcShellBasedSurfaceModel)
@@ -634,12 +809,13 @@ namespace WindowsApplication1
                 if (!debug.Contains("IfcRepresentationItem not supported: " + reprItem.KeyWord))
                     debug += "IfcRepresentationItem not supported: " + reprItem.KeyWord + "\n";
             }
-            //if (result != null)
-            //{
-            //    result.Color = getColorFromIfcRepresentationItem(reprItem);
+
+            if (result != null)
+            {
+                result.Color = getColorFromIfcRepresentationItem(reprItem);
                 
-            //    result.ColorMethod = colorMethodType.byEntity;
-            //}
+                result.ColorMethod = colorMethodType.byEntity;
+            }
 
             return result;
         }
@@ -660,7 +836,7 @@ namespace WindowsApplication1
 
                     Circle circle = new Circle(pln, ifcCircle.Radius);
 
-                    result = new CompositeCurve(circle);
+                    result = circle;
                 }
                 else
                 {
@@ -668,7 +844,7 @@ namespace WindowsApplication1
 
                     Ellipse ellipse = new Ellipse(pln, pln.Origin, ifcEllipse.SemiAxis1, ifcEllipse.SemiAxis2);
 
-                    result = new CompositeCurve(ellipse);
+                    result = ellipse;
                 }
             }
             else if (ifcCurve is IfcPolyline)
@@ -683,7 +859,7 @@ namespace WindowsApplication1
                 }
                 LinearPath lp = new LinearPath(points);
 
-                result = new CompositeCurve(lp);
+                result = lp;
             }
             else if( ifcCurve is IfcCompositeCurve)             // verificare sense e transition
             {
@@ -737,6 +913,7 @@ namespace WindowsApplication1
 
                             trimCurve.Reverse();
                         }
+                        result = trimCurve; //new CompositeCurve(trimCurve);
                     }
                     else if(tc.MasterRepresentation == IfcTrimmingPreference.CARTESIAN)
                     {
@@ -746,7 +923,7 @@ namespace WindowsApplication1
                     {
                         debug += "IfcTrimmed not supported: \n";
                     }
-                    result = new CompositeCurve(trimCurve);
+                    
                 }
             }
             else
@@ -760,6 +937,7 @@ namespace WindowsApplication1
         private static Solid getSolidFromIfcBooleanClippingResult(IfcBooleanClippingResult bcr)
         {
             Solid op1 = null, op2 = null;
+            Solid mmm = null;
 
             Entity e;
 
@@ -792,6 +970,11 @@ namespace WindowsApplication1
                 IfcPlane baseSurface = (IfcPlane)polB.BaseSurface;
 
                 Plane cutPln = Conversion.getPlaneFromPosition(baseSurface.Position);
+
+
+                devDept.Eyeshot.Entities.Region r = new RectangularRegion(cutPln, 100, 100, true);
+                mmm = r.ExtrudeAsSolid(cutPln.AxisZ * 0.1, 0.1);
+
 
                 Plane boundaryPlane = Conversion.getPlaneFromPosition(polB.Position);
                 
@@ -876,18 +1059,23 @@ namespace WindowsApplication1
                     return null;
             }
 
+            //WriteSTL ws = new WriteSTL(new Entity[] { op1, op2, mmm }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), @"c:\devdept\booleanError\gino" + count + ".stl", 0.01, true);
+            //count++;
+            //ws.DoWork();
+
             if (result != null)
             {
                 return result[0];
             }
             else
             {
-                WriteSTL ws = new WriteSTL(new Entity[] { op1, op2 }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), @"c:\devdept\booleanError\gino"+ bcr.Index +".stl", 0.01, true);   
-                count++;
-                ws.DoWork();
-                debug += "Error in boolean operation\n";
+                //WriteSTL ws = new WriteSTL(new Entity[] { op1, op2 }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), @"c:\devdept\booleanError\gino" + bcr.Index + ".stl", 0.01, true);
+                //count++;
+                //ws.DoWork();
+                //debug += "Error in boolean operation\n";
                 return op1;
             }
+            
         }
 
         public static devDept.Eyeshot.Entities.Region getRegionFromIfcProfileDef(IfcProfileDef ipd, ViewportLayout viewportLayout1)
@@ -978,20 +1166,25 @@ namespace WindowsApplication1
 
         private static Color getColorFromIfcRepresentationItem(IfcRepresentationItem reprItem)
         {
-            Color color = Color.Green;
+            Color color = Color.Red;
             try
             {
-                IfcStyledItem ifcStyledItem = reprItem.mStyledByItem;
+                if (reprItem.mStyledByItem != null)
+                {
 
-                IfcPresentationStyleAssignment sas = (IfcPresentationStyleAssignment) ifcStyledItem.Styles[0];
 
-                IfcSurfaceStyle ss = (IfcSurfaceStyle)sas.Styles[0];
+                    IfcStyledItem ifcStyledItem = reprItem.mStyledByItem;
 
-                IfcSurfaceStyleRendering ssr = (IfcSurfaceStyleRendering)ss.Styles[0];
+                    IfcPresentationStyleAssignment sas = (IfcPresentationStyleAssignment)ifcStyledItem.Styles[0];
 
-                color = ssr.SurfaceColour.Colour;
+                    IfcSurfaceStyle ss = (IfcSurfaceStyle)sas.Styles[0];
+
+                    IfcSurfaceStyleRendering ssr = (IfcSurfaceStyleRendering)ss.Styles[0];
+
+                    color = ssr.SurfaceColour.Colour;
+                }
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 //debug += e.Message + "\n";
             }
