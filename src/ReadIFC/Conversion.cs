@@ -26,8 +26,6 @@ namespace WindowsApplication1
 
         private static Entity createOpenings(Entity eyeElement, IfcElement ifcElement, ViewportLayout viewportLayout1)
         {
-            //viewportLayout1.Entities.Add((Entity)eyeElement.Clone(), 1);
-
             if (eyeElement is BlockReference)
             {
                 BlockReference brElement = (BlockReference)eyeElement;
@@ -93,9 +91,9 @@ namespace WindowsApplication1
                                 }
                                 else
                                 {
-                                    //WriteSTL ws = new WriteSTL(new Entity[] { entitySolid, openingSolid }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), @"c:\devdept\booleanError\" + count + " " + ifcElement.GlobalId + ".stl", 0.01, true);
-                                    //count++;
-                                    //ws.DoWork();
+                                    WriteSTL ws = new WriteSTL(new Entity[] { entitySolid, openingSolid }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), @"c:\devdept\booleanError\" + count + " " + ifcElement.GlobalId + ".stl", 0.01, true);
+                                    count++;
+                                    ws.DoWork();
                                     debug += "Error in opening boolean operation\n";
                                 }
                             }
@@ -153,9 +151,9 @@ namespace WindowsApplication1
                         }
                         else
                         {
-                            //WriteSTL ws = new WriteSTL(new Entity[] { entitySolid, openingSolid }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), @"c:\devdept\booleanError\" + count + " " + ifcElement.GlobalId + ".stl", 0.01, true);
-                            //count++;
-                            //ws.DoWork();
+                            WriteSTL ws = new WriteSTL(new Entity[] { entitySolid, openingSolid }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), @"c:\devdept\booleanError\" + count + " " + ifcElement.GlobalId + ".stl", 0.01, true);
+                            count++;
+                            ws.DoWork();
                             debug += "Error in opening boolean operation\n";
                         }
                     }
@@ -378,7 +376,12 @@ namespace WindowsApplication1
 
                 viewportLayout1.Blocks.Add("Representation " + rep.Index.ToString(), b);
 
-                return new IfcBlockReference("Representation " + rep.Index.ToString());
+                BlockReference br = new IfcBlockReference("Representation " + rep.Index.ToString());
+
+                br.ColorMethod = colorMethodType.byParent;
+
+                return br;
+                //return new IfcBlockReference("Representation " + rep.Index.ToString());
             }
             else if (entityList.Count == 0)
                 return null;
@@ -812,9 +815,17 @@ namespace WindowsApplication1
 
             if (result != null)
             {
-                result.Color = getColorFromIfcRepresentationItem(reprItem);
-                
-                result.ColorMethod = colorMethodType.byEntity;
+                Color color;
+                if( tryGetColorFromIfcRepresentationItem(reprItem, out color))
+                {
+                    result.ColorMethod = colorMethodType.byEntity;
+
+                    result.Color = color;
+                }
+                else
+                {
+                    result.ColorMethod = colorMethodType.byParent;
+                }
             }
 
             return result;
@@ -982,17 +993,6 @@ namespace WindowsApplication1
 
                 ICurve boundary = getICurveFromIfcCurve(polB.PolygonalBoundary);
 
-                //IfcPolyline p = (IfcPolyline)polB.PolygonalBoundary;
-
-                //Point3D[] points = new Point3D[p.Points.Count];
-
-                //for (int i = 0; i < p.Points.Count; i++)
-                //{
-                //    points[i] = new Point3D(p.Points[i].Coordinates.Item1, p.Points[i].Coordinates.Item2, p.Points[i].Coordinates.Item3);
-                //}
-                //LinearPath lp = new LinearPath(points);
-
-                //devDept.Eyeshot.Entities.Region region = new devDept.Eyeshot.Entities.Region(lp);
                 if (boundary != null)
                 {
                     devDept.Eyeshot.Entities.Region region = new devDept.Eyeshot.Entities.Region(boundary);
@@ -1069,10 +1069,10 @@ namespace WindowsApplication1
             }
             else
             {
-                //WriteSTL ws = new WriteSTL(new Entity[] { op1, op2 }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), @"c:\devdept\booleanError\gino" + bcr.Index + ".stl", 0.01, true);
-                //count++;
-                //ws.DoWork();
-                //debug += "Error in boolean operation\n";
+                WriteSTL ws = new WriteSTL(new Entity[] { op1, op2 }, new Layer[] { new Layer("Default") }, new Dictionary<string, Block>(), @"c:\devdept\booleanError\gino" + bcr.Index + ".stl", 0.01, true);
+                count++;
+                ws.DoWork();
+                debug += "Error in boolean operation\n";
                 return op1;
             }
             
@@ -1164,15 +1164,13 @@ namespace WindowsApplication1
             return new Point3D( icp.Coordinates.Item1, icp.Coordinates.Item2, icp.Coordinates.Item3);
         }
 
-        private static Color getColorFromIfcRepresentationItem(IfcRepresentationItem reprItem)
+        private static Boolean tryGetColorFromIfcRepresentationItem(IfcRepresentationItem reprItem, out Color color)
         {
-            Color color = Color.Red;
+            color = Color.Black;
             try
             {
                 if (reprItem.mStyledByItem != null)
                 {
-
-
                     IfcStyledItem ifcStyledItem = reprItem.mStyledByItem;
 
                     IfcPresentationStyleAssignment sas = (IfcPresentationStyleAssignment)ifcStyledItem.Styles[0];
@@ -1181,14 +1179,18 @@ namespace WindowsApplication1
 
                     IfcSurfaceStyleRendering ssr = (IfcSurfaceStyleRendering)ss.Styles[0];
 
-                    color = ssr.SurfaceColour.Colour;
+                    int alpha = Convert.ToInt32((1 - ssr.Transparency) * 255);
+
+                    color = Color.FromArgb(alpha, ssr.SurfaceColour.Colour);
+
+                    return true;
                 }
             }
             catch (Exception e)
             {
                 //debug += e.Message + "\n";
             }
-            return color;
+            return false;
         }
     }
 }

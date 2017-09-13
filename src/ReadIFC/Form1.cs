@@ -36,6 +36,7 @@ namespace WindowsApplication1
             //viewportLayout1.Backface.ColorMethod = backfaceColorMethodType.SingleColor;
             //viewportLayout1.ShowCurveDirection = true;
             //viewportLayout1.DisplayMode = displayType.Shaded;
+            viewportLayout1.Rendered.ShowEdges = false;
 
             //viewportLayout1.Layers.TurnOff("testLayer");
             //viewportLayout1.Layers.TurnOff("Default");
@@ -65,8 +66,11 @@ namespace WindowsApplication1
             viewportLayout1.Layers[0].Name = "Default";
             //viewportLayout1.Layers[0].Color = Color.Gray;
 
+            //viewportLayout1.Layers[spatialLayer].Visible = true;
+            //viewportLayout1.Layers[0].Visible = false;
+
             //DatabaseIfc db = new DatabaseIfc("C:\\devdept\\IFC Model.ifc");
-            //DatabaseIfc db = new DatabaseIfc("C:\\devdept\\IFC\\Martti_Ahtisaaren_RAK.ifc");
+            //DatabaseIfc db = new DatabaseIfc("C:\\devdept\\IFC\\Martti_Ahtisaaren_RAK.ifc");                //gym exception
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\MOD-Padrão\\MOD-Padrão.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\Blueberry031105_Complete_optimized.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\Clinic_Handover_WithProperty3.ifc");      //Gym exception
@@ -75,10 +79,10 @@ namespace WindowsApplication1
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\NHS Office.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\Office_A_20110811.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\porur duplex.ifc");
-            DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\c_rvt8_Townhouse.ifc");
+            //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Data\\c_rvt8_Townhouse.ifc");
 
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Samples\\01 Fire Protection.ifc");
-            //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Samples\\ArchiCAD IFC Buildsoft.ifc");
+            DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Samples\\ArchiCAD IFC Buildsoft.ifc");
             //DatabaseIfc db = new DatabaseIfc("C:\\devDept\\IFC\\IFC Samples\\Clinic_S_20110715_optimized.ifc");
 
             IfcProject project = db.Project;
@@ -89,33 +93,65 @@ namespace WindowsApplication1
 
             List<IfcDistributionElement> ifcDistributionElement = project.Extract<IfcDistributionElement>();
 
-            List<IfcRoot> ifcRoot = project.Extract<IfcRoot>();
+            //List<IfcRoot> ifcRoot = project.Extract<IfcRoot>();
 
-            //foreach (IfcSpatialElement ifcElement in spElements)  //ifcmesh
-            //{
-            //    Entity eyeElement = null;
+            foreach (IfcSpatialElement ifcElement in ifcSpatialElement)  //ifcmesh
+            {
+                Entity eyeElement = null;
 
-            //    Transformation elementTrs = new Transformation(1);
+                Transformation elementTrs = new Transformation(1);
 
-            //    if (ifcElement.Placement != null)
-            //    {
-            //        elementTrs = Conversion.getPlacementTransformtion(ifcElement.Placement);
-            //    }
-            //    if (ifcElement.Representation != null)
-            //    {
-            //        eyeElement = Conversion.getEntityFromIfcProductRepresentation(ifcElement.Representation, viewportLayout1, elementTrs);
-            //    }
-            //    if (eyeElement != null)
-            //    {
-            //        eyeElement.TransformBy(elementTrs);
+                if (ifcElement.Placement != null)
+                {
+                    elementTrs = Conversion.getPlacementTransformtion(ifcElement.Placement);
+                }
+                if (ifcElement.Representation != null)
+                {
+                    eyeElement = Conversion.getEntityFromIfcProductRepresentation(ifcElement.Representation, viewportLayout1, elementTrs);
+                }
+                if (eyeElement != null)
+                {
+                    eyeElement.TransformBy(elementTrs);
 
-            //        viewportLayout1.Entities.Add(eyeElement, spatialLayer);
-            //    }
-            //}
+                    if (eyeElement is BlockReference)
+                    {
+                        UtilityIfc.loadProperties((IfcBlockReference)eyeElement, ifcElement);
+                    }
+                    else
+                    {
+                        IfcMesh ifcMesh;
+
+                        Mesh eyeElementMesh;
+
+                        if (eyeElement is Solid)
+                        {
+                            Solid eyeElementSolid = (Solid)eyeElement;
+
+                            eyeElementMesh = eyeElementSolid.ConvertToMesh();
+                        }
+                        else
+                        {
+                            eyeElementMesh = (Mesh)eyeElement;
+                        }
+                        Color color = eyeElementMesh.Color;
+                        colorMethodType cmt = eyeElementMesh.ColorMethod;
+
+                        ifcMesh = new IfcMesh(eyeElementMesh.Vertices, eyeElementMesh.Triangles);
+
+                        ifcMesh.Color = color;
+                        ifcMesh.ColorMethod = cmt;
+
+                        UtilityIfc.loadProperties(ifcMesh, ifcElement);
+
+                        eyeElement = ifcMesh;
+                    }
+                    viewportLayout1.Entities.Add(eyeElement, spatialLayer);
+                }
+            }
 
             foreach (IfcBuildingElement ifcElement in ifcBuildingElement)
             {
-                if (/*ifcElement.GlobalId.StartsWith("2O_tcxRRn1gegwp_L0mkmi") &&/**/ ifcElement.Decomposes == null)
+                if (ifcElement.GlobalId.StartsWith("3LHl4aR6j6bfwjDqKa2Mh9") &&/**/ ifcElement.Decomposes == null)
                 {
                     Entity eyeElement = Conversion.getEntityFromIfcElement(ifcElement, viewportLayout1);
 
